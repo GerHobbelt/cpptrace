@@ -347,63 +347,22 @@ if(CPPTRACE_GET_SYMBOLS_WITH_ADDR2LINE)
   endif()
 endif()
 
+include(cmake/CPM.cmake)
+CPMUsePackageLock(package-lock.cmake)
+
 if(CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF)
   target_compile_definitions(${target_name} PUBLIC CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF)
   if(CPPTRACE_USE_EXTERNAL_LIBDWARF)
     find_package(libdwarf REQUIRED)
   else()
-    include(FetchContent)
     # First, dependencies: Zstd and zlib (currently relying on system zlib)
     if(CPPTRACE_USE_EXTERNAL_ZSTD)
       find_package(zstd)
     else()
-      cmake_policy(SET CMP0074 NEW)
-      FetchContent_Declare(
-          zstd
-          GIT_REPOSITORY https://github.com/facebook/zstd.git
-          GIT_TAG 63779c798237346c2b245c546c40b72a5a5913fe # v1.5.5
-          GIT_SHALLOW 1
-          SOURCE_SUBDIR build/cmake
-      )
-      # FetchContent_MakeAvailable(zstd)
-      FetchContent_GetProperties(zstd)
-      if(NOT zstd_POPULATED)
-        FetchContent_Populate(zstd)
-        set(ZSTD_BUILD_PROGRAMS OFF)
-        set(ZSTD_BUILD_CONTRIB OFF)
-        set(ZSTD_BUILD_TESTS OFF)
-        set(ZSTD_BUILD_STATIC ON)
-        set(ZSTD_BUILD_SHARED OFF)
-        set(ZSTD_LEGACY_SUPPORT OFF)
-        add_subdirectory("${zstd_SOURCE_DIR}/build/cmake" "${zstd_BINARY_DIR}")
-      endif()
+      CPMGetPackage(zstd)
     endif()
-    # Libdwarf itself
-    set(CMAKE_POLICY_DEFAULT_CMP0077 NEW)
-    # set(PIC_ALWAYS TRUE)
-    # set(BUILD_DWARFDUMP FALSE)
-    FetchContent_Declare(
-      libdwarf
-      # GIT_REPOSITORY https://github.com/davea42/libdwarf-code.git
-      # GIT_TAG 6216e185863f41d6f19ab850caabfff7326020d7 # v0.8.0
-      # GIT_TAG 8b0bd09d8c77d45a68cb1bb00a54186a92b683d9 # v0.9.0
-      # GIT_TAG 8cdcc531f310d1c5ae61da469d8056bdd36b77e7 # v0.9.1 + some cmake changes
-      # Using a lightweight mirror that's optimized for clone + configure speed
-      GIT_REPOSITORY https://github.com/jeremy-rifkin/libdwarf-lite.git
-      # GIT_TAG c78e984f3abbd20f6e01d6f51819e826b1691f65 # v0.8.0
-      # GIT_TAG 71090c680b4c943448ba87a0f1f864f174e4edda # v0.9.0
-      # GIT_TAG 5c0cb251f94b27e90184e6b2d9a0c9c62593babc # v0.9.1 + some cmake changes
-      GIT_TAG 87401f22cd05628d23059cb29ee6448a55c3a88a # v0.9.2
-      GIT_SHALLOW 1
-    )
-    # FetchContent_MakeAvailable(libdwarf)
-    FetchContent_GetProperties(libdwarf)
+    CPMGetPackage(libdwarf)
     if(NOT libdwarf_POPULATED)
-      set(PIC_ALWAYS TRUE)
-      set(BUILD_DWARFDUMP FALSE)
-      # set(ENABLE_DECOMPRESSION FALSE)
-      FetchContent_Populate(libdwarf)
-      add_subdirectory("${libdwarf_SOURCE_DIR}" "${libdwarf_BINARY_DIR}")
       target_include_directories(
         dwarf
         PRIVATE
