@@ -428,7 +428,7 @@ extern "C" {
     }
 
     void ctrace_enable_inlined_call_resolution(ctrace_bool enable) {
-        cpptrace::enable_inlined_call_resolution(enable);
+        cpptrace::enable_inlined_call_resolution(!!enable);
     }
 
     ctrace_object_frame ctrace_get_object_info(const ctrace_stacktrace_frame* frame) {
