@@ -16,7 +16,7 @@
 #define CPPTRACE_IMPORT_ATTR __attribute__((visibility("default")))
 #endif
 
-#ifdef CPPTRACE_STATIC_DEFINE
+#if defined(CPPTRACE_STATIC_DEFINE) || defined(BUILD_MONOLITHIC)
 #  define CPPTRACE_EXPORT
 #  define CPPTRACE_NO_EXPORT
 #else
