@@ -7,6 +7,10 @@
 #include <string>
 #include <vector>
 
+#include "monolithic_examples.h"
+
+namespace {
+
 std::string normalize_filename(std::string name) {
     if(name.find('/') == 0 || (name.find(':') == 1 && std::isupper(name[0]))) {
         // build/integration if the file is really an object name resolved by libdl
@@ -19,7 +23,7 @@ std::string normalize_filename(std::string name) {
 
 void custom_print(const cpptrace::stacktrace&);
 
-void trace() {
+void trace(void) {
     auto trace = cpptrace::generate_trace();
     if(trace.empty()) {
         std::cerr << "<empty trace>" << std::endl;
@@ -119,13 +123,6 @@ void function_one(int) {
     x = 0;
 }
 
-int main() {
-    x = 0;
-    cpptrace::absorb_trace_exceptions(false);
-    function_one(0);
-    x = 0;
-}
-
 void custom_print(const cpptrace::stacktrace& trace) {
     for(const auto& frame : trace) {
         std::cout
@@ -136,4 +133,19 @@ void custom_print(const cpptrace::stacktrace& trace) {
             << frame.symbol
             << std::endl;
     }
+}
+
+} // namespace
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_integration_main
+#endif
+
+extern "C"
+int main(void) {
+	x = 0;
+	cpptrace::absorb_trace_exceptions(false);
+	function_one(0);
+	x = 0;
+	return 0;
 }

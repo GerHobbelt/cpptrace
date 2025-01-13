@@ -4,6 +4,10 @@
 
 #include <iostream>
 
+#include "monolithic_examples.h"
+
+#define BENCHMARK_FAMILY_ID   "cpptrace"
+
 struct unwind_benchmark_info {
     benchmark::State& state;
     size_t& stack_depth;
@@ -50,6 +54,10 @@ static void unwinding(benchmark::State& state) {
 
 // Register the function as a benchmark
 BENCHMARK(unwinding);
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_benchmark_main
+#endif
 
 // Run the benchmark
 BENCHMARK_MAIN();

@@ -1,11 +1,21 @@
+#ifndef _WIN32
 #include <unistd.h>
+#else
+#endif
 
 #include <cstdio>
 #include <iostream>
 
 #include <cpptrace/cpptrace.hpp>
 
-int main() {
+#include "monolithic_examples.h"
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_signal_tracer_main
+#endif
+
+extern "C"
+int main(void) {
     cpptrace::object_trace trace;
     while(true) {
         cpptrace::safe_object_frame frame;
@@ -20,4 +30,5 @@ int main() {
         }
     }
     trace.resolve().print();
+		return 0;
 }
