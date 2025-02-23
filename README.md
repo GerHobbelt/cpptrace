@@ -496,7 +496,7 @@ resolves a trace from `cpptrace::raw_trace_from_current_exception`.
 
 It's tricky, however, from the library's standpoint to check if the catch will end up matching. The library could simply
 generate a trace every time a `CPPTRACE_CATCH` is considered, however, in a deep nesting of catch's, e.g. as a result of
-recusion, where a matching handler is not found quickly this could introduce a non-trivial cost in the throwing pat due
+recursion, where a matching handler is not found quickly this could introduce a non-trivial cost in the throwing part due
 to tracing the stack multiple times. Thus, there is a performance tradeoff between a little book keeping to prevent
 duplicate tracing or biting the bullet, so to speak, in the throwing path and unwinding multiple times.
 
@@ -512,7 +512,7 @@ duplicate tracing or biting the bullet, so to speak, in the throwing path and un
 
 More information on performance considerations with the zero-overhead variant:
 
-Tracing the stack multiple times in throwing paths should not matter for the vast majority applications given that:
+Tracing the stack multiple times in throwing paths should not matter for the vast majority of applications given that:
 1. Performance very rarely is critical in throwing paths and exceptions should be exceptionally rare
 2. Exception handling is not usually used in such a way that you could have a deep nesting of handlers before finding a
    matching handler
@@ -778,6 +778,7 @@ namespace cpptrace {
 ## Headers
 
 Cpptrace provides a handful of headers to make inclusion more minimal.
+
 | Header                      | Contents                                                                                                                                                                                              |
 | --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cpptrace/forward.hpp`      | `cpptrace::frame_ptr` and a few trace class forward declarations                                                                                                                                      |
