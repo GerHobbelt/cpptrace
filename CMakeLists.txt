@@ -9,7 +9,7 @@ set(package_name "cpptrace")
 
 project(
   cpptrace
-  VERSION 0.7.1
+  VERSION 0.7.2
   DESCRIPTION "Simple, portable, and self-contained stacktrace library for C++11 and newer "
   HOMEPAGE_URL "https://github.com/jeremy-rifkin/cpptrace"
   LANGUAGES C CXX
@@ -226,7 +226,10 @@ target_sources(
     src/binary/safe_dl.cpp
     src/cpptrace.cpp
     src/ctrace.cpp
+    src/exceptions.cpp
     src/from_current.cpp
+    src/options.cpp
+    src/utils.cpp
     src/demangle/demangle_with_cxxabi.cpp
     src/demangle/demangle_with_nothing.cpp
     src/demangle/demangle_with_winapi.cpp
