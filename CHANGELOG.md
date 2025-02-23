@@ -1,6 +1,8 @@
 # Changelog
 
 - [Changelog](#changelog)
+- [v0.7.5](#v075)
+- [v0.7.4](#v074)
 - [v0.7.3](#v073)
 - [v0.7.2](#v072)
 - [v0.7.1](#v071)
@@ -22,6 +24,25 @@
 - [v0.2.0](#v020)
 - [v0.1.1](#v011)
 - [v0.1](#v01)
+
+# v0.7.5
+
+Fixed:
+- Fixed missing `<typeinfo>` include https://github.com/jeremy-rifkin/cpptrace/pull/202
+- Added `__cdecl` to a terminate handler to appease MSVC under some configurations https://github.com/jeremy-rifkin/cpptrace/issues/197
+- Set C++ standard for cmake support checks https://github.com/jeremy-rifkin/cpptrace/issues/200
+- Changed hyphens to underscores for cmake component names due to cpack issue https://github.com/jeremy-rifkin/cpptrace/issues/203
+
+# v0.7.4
+
+Added:
+- Added `<cpptrace/version.hpp>` header with version macros
+
+Fixes:
+- Bumped libdwarf to 0.11.0 which fixes a number of dwarf 5 debug fission issues
+
+Other:
+- Various improvements to internal testing setup
 
 # v0.7.3
 
