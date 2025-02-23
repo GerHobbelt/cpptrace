@@ -1,5 +1,8 @@
 #include "cpptrace/formatting.hpp"
 #include "cpptrace/forward.hpp"
+
+#if !defined(_MSC_VER)
+
 #include <lyra/lyra.hpp>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -31,43 +34,49 @@ void resolve(const std::filesystem::path& path, cpptrace::frame_ptr address) {
     std::cout<<std::endl;
 }
 
-int main(int argc, char** argv) CPPTRACE_TRY {
-    bool show_help = false;
-    std::filesystem::path path;
-    std::vector<std::string> address_strings;
-    bool from_stdin = false;
-    auto cli = lyra::cli()
-        | lyra::help(show_help)
-        | lyra::opt(from_stdin)["--stdin"]("read addresses from stdin")
-        | lyra::arg(path, "binary path")("binary to look in").required()
-        | lyra::arg(address_strings, "addresses")("addresses");
-    if(auto result = cli.parse({ argc, argv }); !result) {
-        fmt::println(stderr, "Error in command line: {}", result.message());
-        fmt::println("{}", cli);
-        return 1;
-    }
-    if(show_help) {
-        fmt::println("{}", cli);
-        return 0;
-    }
-    if(!std::filesystem::exists(path)) {
-        fmt::println(stderr, "Error: Path doesn't exist {}", path);
-        return 1;
-    }
-    if(!std::filesystem::is_regular_file(path)) {
-        fmt::println(stderr, "Error: Path isn't a regular file {}", path);
-        return 1;
-    }
-    for(const auto& address : address_strings) {
-        resolve(path, std::stoi(address, nullptr, 16));
-    }
-    if(from_stdin) {
-        std::string word;
-        while(std::cin >> word) {
-            resolve(path, std::stoi(word, nullptr, 16));
-        }
-    }
-} CPPTRACE_CATCH(const std::exception& e) {
-    fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
-    cpptrace::from_current_exception().print();
+extern "C"
+int main(int argc, const char** argv) {
+	CPPTRACE_TRY{
+		bool show_help = false;
+		std::filesystem::path path;
+		std::vector<std::string> address_strings;
+		bool from_stdin = false;
+		auto cli = lyra::cli()
+			| lyra::help(show_help)
+			| lyra::opt(from_stdin)["--stdin"]("read addresses from stdin")
+			| lyra::arg(path, "binary path")("binary to look in").required()
+			| lyra::arg(address_strings, "addresses")("addresses");
+		if (auto result = cli.parse({ argc, argv }); !result) {
+			fmt::println(stderr, "Error in command line: {}", result.message());
+			fmt::println("{}", cli);
+			return 1;
+		}
+		if (show_help) {
+			fmt::println("{}", cli);
+			return 0;
+		}
+		if (!std::filesystem::exists(path)) {
+			fmt::println(stderr, "Error: Path doesn't exist {}", path);
+			return 1;
+		}
+		if (!std::filesystem::is_regular_file(path)) {
+			fmt::println(stderr, "Error: Path isn't a regular file {}", path);
+			return 1;
+		}
+		for (const auto& address : address_strings) {
+			resolve(path, std::stoi(address, nullptr, 16));
+		}
+		if (from_stdin) {
+			std::string word;
+			while (std::cin >> word) {
+				resolve(path, std::stoi(word, nullptr, 16));
+			}
+		}
+	} CPPTRACE_CATCH(const std::exception& e) {
+		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
+		cpptrace::from_current_exception().print();
+	}
+	return 0;
 }
+
+#endif
