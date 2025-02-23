@@ -7,7 +7,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <memory>
-#include <new>
 #include <string>
 #include <type_traits>
 #include <utility>
@@ -187,6 +186,13 @@ namespace detail {
     template<typename U, typename V>
     U to(V v) {
         return static_cast<U>(v);
+    }
+
+    template<typename T, typename U = T>
+    T exchange(T& obj, U&& value) {
+        T old = std::move(obj);
+        obj = std::forward<U>(value);
+        return old;
     }
 
     struct monostate {};
