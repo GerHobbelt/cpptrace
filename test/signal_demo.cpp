@@ -5,21 +5,26 @@
 #include <iostream>
 #include <string>
 
+#include "monolithic_examples.h"
+
+#ifndef _WIN32
 #include <sys/wait.h>
-#include <cstring>
 #include <signal.h>
 #include <csignal>
 #include <unistd.h>
+#include <cstring>
 
-void trace() {
+namespace {
+
+void trace(void) {
     *(volatile char*)0 = 2;
 }
 
-void bar() {
+void bar(void) {
     trace();
 }
 
-void foo() {
+void foo(void) {
     bar();
 }
 
@@ -72,14 +77,21 @@ void handler(int signo, siginfo_t* info, void* context) {
     _exit(1);
 }
 
-void warmup_cpptrace() {
+void warmup_cpptrace(void) {
     cpptrace::frame_ptr buffer[10];
     std::size_t count = cpptrace::safe_generate_raw_trace(buffer, 10);
     cpptrace::safe_object_frame frame;
     cpptrace::get_safe_object_frame(buffer[0], &frame);
 }
 
-int main() {
+} // namespace
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_signal_demo_main
+#endif
+
+extern "C"
+int main(void) {
     cpptrace::absorb_trace_exceptions(false);
     cpptrace::register_terminate_handler();
     warmup_cpptrace();
@@ -93,4 +105,7 @@ int main() {
     }
 
     foo();
+		return 0;
 }
+
+#endif

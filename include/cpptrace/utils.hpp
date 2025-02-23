@@ -3,12 +3,14 @@
 
 #include <cpptrace/basic.hpp>
 
+#if !defined(BUILD_MONOLITHIC)
 #ifdef _MSC_VER
 #pragma warning(push)
 // warning C4251: using non-dll-exported type in dll-exported type, firing on std::vector<frame_ptr> and others for some
 // reason
 // 4275 is the same thing but for base classes
 #pragma warning(disable: 4251; disable: 4275)
+#endif
 #endif
 
 namespace cpptrace {
@@ -44,5 +46,11 @@ namespace cpptrace {
         CPPTRACE_EXPORT void set_cache_mode(cache_mode mode);
     }
 }
+
+#if !defined(BUILD_MONOLITHIC)
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+#endif
 
 #endif

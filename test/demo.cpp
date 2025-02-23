@@ -6,7 +6,11 @@
 #include <iostream>
 #include <string>
 
-void trace() {
+#include "monolithic_examples.h"
+
+namespace {
+
+void trace(void) {
     cpptrace::generate_trace().print();
     cpptrace::generate_trace().print_with_snippets();
     throw cpptrace::logic_error("foobar");
@@ -33,8 +37,16 @@ void function_one(int) {
     function_two(0, 0);
 }
 
-int main() {
+} // namespace
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_demo_main
+#endif
+
+extern "C"
+int main(void) {
     cpptrace::absorb_trace_exceptions(false);
     cpptrace::register_terminate_handler();
     function_one(0);
+		return 0;
 }

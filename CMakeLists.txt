@@ -113,6 +113,7 @@ target_sources(
     src/ctrace.cpp
     src/exceptions.cpp
     src/from_current.cpp
+    src/formatting.cpp
     src/options.cpp
     src/utils.cpp
     src/demangle/demangle_with_cxxabi.cpp
@@ -349,11 +350,14 @@ if(CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF)
     endif()
   endif()
   if(CPPTRACE_CONAN)
+    set(dwarf_lib libdwarf::libdwarf)
     target_link_libraries(${target_name} PRIVATE libdwarf::libdwarf)
   elseif(CPPTRACE_VCPKG)
+    set(dwarf_lib libdwarf::dwarf)
     target_link_libraries(${target_name} PRIVATE libdwarf::dwarf)
   elseif(CPPTRACE_USE_EXTERNAL_LIBDWARF)
     if(DEFINED LIBDWARF_LIBRARIES)
+      set(dwarf_lib ${LIBDWARF_LIBRARIES})
       target_link_libraries(${target_name} PRIVATE ${LIBDWARF_LIBRARIES})
     else()
       # if LIBDWARF_LIBRARIES wasn't set by find_package, try looking for libdwarf::dwarf-static,
@@ -371,6 +375,7 @@ if(CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF)
       else()
         message(FATAL_ERROR "Couldn't find libdwarf target name to link against")
       endif()
+      set(dwarf_lib ${LIBDWARF_LIBRARIES})
       target_link_libraries(${target_name} PRIVATE ${LIBDWARF_LIBRARIES})
     endif()
     # There seems to be no consistency at all about where libdwarf decides to place its headers........ Figure out if
@@ -393,6 +398,7 @@ if(CPPTRACE_GET_SYMBOLS_WITH_LIBDWARF)
       message(FATAL_ERROR "Couldn't find libdwarf.h")
     endif()
   else()
+    set(dwarf_lib libdwarf::dwarf-static)
     target_link_libraries(${target_name} PRIVATE libdwarf::dwarf-static)
   endif()
   if(UNIX)
@@ -508,7 +514,7 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
   include(cmake/InstallRules.cmake)
 endif()
 
-# ===================================================== Demo/test ======================================================
+# ================================================== Demo/test/tools ===================================================
 
 if(CPPTRACE_BUILD_TESTING)
   if(PROJECT_IS_TOP_LEVEL)
@@ -519,4 +525,8 @@ endif()
 
 if(CPPTRACE_BUILD_BENCHMARKING)
   add_subdirectory(benchmarking)
+endif()
+
+if(CPPTRACE_BUILD_TOOLS)
+  add_subdirectory(tools)
 endif()
