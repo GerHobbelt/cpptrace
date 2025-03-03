@@ -79,28 +79,38 @@ namespace cpptrace {
  // this awful double-IILE is due to C2713 "You can't use structured exception handling (__try/__except) and C++
  // exception handling (try/catch) in the same function."
  #define CPPTRACE_TRY \
+ [&]() -> int { \
      try { \
          ::cpptrace::detail::try_canary cpptrace_try_canary; \
-         [&]() { \
+         return [&]() -> int { \
              __try { \
-                 [&]() {
+                 return [&]() -> int {
  #define CPPTRACE_CATCH(param) \
                  }(); \
-             } __except(::cpptrace::detail::exception_filter()) {} \
+             } __except(::cpptrace::detail::exception_filter()) { \
+                 return 666; \
+             } \
          }(); \
      } catch(param)
  #define CPPTRACE_TRYZ \
+ [&]() -> int { \
      try { \
-         [&]() { \
+         return [&]() -> int { \
              __try { \
-                 [&]() {
+                 return [&]() -> int {
  #define CPPTRACE_CATCHZ(param) \
                  }(); \
-             } __except(::cpptrace::detail::unconditional_exception_filter()) {} \
+             } __except(::cpptrace::detail::unconditional_exception_filter()) { \
+                 return 666; \
+             } \
          }(); \
      } catch(param)
+#define CPPTRACE_TRY_END \
+     return 42;
+ }()
 #else
  #define CPPTRACE_TRY \
+ [&]() -> int { \
      try { \
          _Pragma("GCC diagnostic push") \
          _Pragma("GCC diagnostic ignored \"-Wshadow\"") \
@@ -111,16 +121,22 @@ namespace cpptrace {
          } catch(::cpptrace::detail::unwind_interceptor&) {} \
      } catch(param)
  #define CPPTRACE_TRYZ \
-     try { \
+ [&]() -> int { \
+      try { \
          try {
  #define CPPTRACE_CATCHZ(param) \
          } catch(::cpptrace::detail::unconditional_unwind_interceptor&) {} \
      } catch(param)
+#define CPPTRACE_TRY_END \
+     return 42;
+ }()
 #endif
 
 #define CPPTRACE_CATCH_ALT(param) catch(param)
 
 #ifdef CPPTRACE_UNPREFIXED_TRY_CATCH
+ #error "Using CPPTRACE_UNPREFIXED_TRY_CATCH is obsoleted in monolithic builds at least - and anywhere else if I have any say!"
+
  #define TRY CPPTRACE_TRY
  #define CATCH(param) CPPTRACE_CATCH(param)
  #define TRYZ CPPTRACE_TRYZ

@@ -1,8 +1,6 @@
+
 #include "cpptrace/formatting.hpp"
 #include "cpptrace/forward.hpp"
-
-#if !defined(_MSC_VER)
-
 #include <lyra/lyra.hpp>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -24,7 +22,7 @@ template<> struct fmt::formatter<lyra::cli> : ostream_formatter {};
 auto formatter = cpptrace::formatter{}.addresses(cpptrace::formatter::address_mode::object);
 
 void resolve(const std::filesystem::path& path, cpptrace::frame_ptr address) {
-    cpptrace::object_frame obj_frame{0, address, path};
+    cpptrace::object_frame obj_frame{0, address, path.string()};
     std::vector<cpptrace::stacktrace_frame> trace = cpptrace::detail::resolve_frames({obj_frame});
     if(trace.size() != 1) {
         throw std::runtime_error("Something went wrong, trace vector size didn't match");
@@ -36,7 +34,7 @@ void resolve(const std::filesystem::path& path, cpptrace::frame_ptr address) {
 
 extern "C"
 int main(int argc, const char** argv) {
-	CPPTRACE_TRY{
+	int rv = CPPTRACE_TRY{
 		bool show_help = false;
 		std::filesystem::path path;
 		std::vector<std::string> address_strings;
@@ -72,11 +70,12 @@ int main(int argc, const char** argv) {
 				resolve(path, std::stoi(word, nullptr, 16));
 			}
 		}
+		return 0;
 	} CPPTRACE_CATCH(const std::exception& e) {
 		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
 		cpptrace::from_current_exception().print();
+		return 66;
 	}
-	return 0;
+	CPPTRACE_TRY_END;
+	return rv;
 }
-
-#endif

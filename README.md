@@ -93,12 +93,16 @@ void foo() {
     throw std::runtime_error("foo failed");
 }
 int main() {
-    CPPTRACE_TRY {
+    int rv = CPPTRACE_TRY {
         foo();
+		return 0;
     } CPPTRACE_CATCH(const std::exception& e) {
         std::cerr<<"Exception: "<<e.what()<<std::endl;
         cpptrace::from_current_exception().print();
+		return 6;
     }
+    CPPTRACE_TRY_END;
+	return rv;
 }
 ```
 
@@ -385,12 +389,16 @@ void foo() {
     throw std::runtime_error("foo failed");
 }
 int main() {
-    CPPTRACE_TRY {
+    int rv = CPPTRACE_TRY {
         foo();
+		return 0;
     } CPPTRACE_CATCH(const std::exception& e) {
         std::cerr<<"Exception: "<<e.what()<<std::endl;
         cpptrace::from_current_exception().print();
+		return 66;
     }
+    CPPTRACE_TRY_END;
+	return rv;
 }
 ```
 
@@ -433,6 +441,7 @@ CPPTRACE_TRY {
 } CPPTRACE_CATCH(const std::exception&) { // <- Not Ok
     // ...
 }
+CPPTRACE_TRY_END;
 ```
 
 Note: The current exception is the exception most recently seen by a cpptrace try-catch macro block.
@@ -447,8 +456,10 @@ CPPTRACE_TRY {
     } CPPTRACE_CATCH(const std::exception& e) {
         cpptrace::from_current_exception().print(); // the trace for std::runtime_error("bar")
     }
+    CPPTRACE_TRY_END;
     cpptrace::from_current_exception().print(); // the trace for std::runtime_error("bar"), again
 }
+CPPTRACE_TRY_END;
 ```
 
 ### Removing the `CPPTRACE_` prefix
