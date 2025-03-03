@@ -1,6 +1,4 @@
 
-#if !defined(_MSC_VER)
-
 #include <lyra/lyra.hpp>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -9,6 +7,8 @@
 #include <cpptrace/from_current.hpp>
 
 #include <filesystem>
+
+#if !defined(_WIN32)
 
 #include "symbols/dwarf/dwarf.hpp"
 
@@ -183,6 +183,14 @@ int main(int argc, const char** argv) {
 		cpptrace::from_current_exception().print();
 	}
 	return 0;
+}
+
+#else
+
+extern "C"
+int main(int argc, const char** argv) {
+	fmt::println(stderr, "Error: {}\n", "dwarfdump is not available for the Win32/Win64 platform.");
+	return 1;
 }
 
 #endif

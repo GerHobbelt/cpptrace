@@ -9,6 +9,8 @@
 #include <functional>
 #include <type_traits>
 
+#if !defined(_WIN32)
+
 #ifdef CPPTRACE_USE_NESTED_LIBDWARF_HEADER_PATH
  #include <libdwarf/libdwarf.h>
  #include <libdwarf/dwarf.h>
@@ -536,5 +538,7 @@ namespace libdwarf {
 }
 }
 }
+
+#endif
 
 #endif

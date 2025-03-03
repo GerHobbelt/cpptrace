@@ -1,6 +1,4 @@
 
-#if !defined(_MSC_VER)
-
 #include <lyra/lyra.hpp>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -88,5 +86,3 @@ int main(int argc, const char** argv) {
 	}
 	return 0;
 }
-
-#endif
