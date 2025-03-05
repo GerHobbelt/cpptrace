@@ -103,7 +103,7 @@ namespace detail {
 
     Result<const char*, internal_error> mach_o::symtab_info_data::get_string(std::size_t index) const {
         if(stringtab && index < symtab.strsize) {
-            return stringtab.get() + index;
+            return stringtab.unwrap().data() + index;
         } else {
             return internal_error("can't retrieve symbol from symtab");
         }
@@ -287,7 +287,7 @@ namespace detail {
                     }
                     print_symbol_table_entry(
                         entry.unwrap_value(),
-                        stringtab ? stringtab.unwrap_value().get() : nullptr,
+                        stringtab ? stringtab.unwrap_value().data() : nullptr,
                         symtab.strsize,
                         j
                     );
@@ -642,12 +642,12 @@ namespace detail {
         return common;
     }
 
-    Result<std::unique_ptr<char[]>, internal_error> mach_o::load_string_table(std::uint32_t offset, std::uint32_t byte_count) const {
-        std::unique_ptr<char[]> buffer(new char[byte_count + 1]);
+    Result<std::vector<char>, internal_error> mach_o::load_string_table(std::uint32_t offset, std::uint32_t byte_count) const {
+        std::vector<char> buffer(byte_count + 1);
         if(std::fseek(file, load_base + offset, SEEK_SET) != 0) {
             return internal_error("fseek error while loading mach-o symbol table");
         }
-        if(std::fread(buffer.get(), sizeof(char), byte_count, file) != byte_count) {
+        if(std::fread(buffer.data(), sizeof(char), byte_count, file) != byte_count) {
             return internal_error("fread error while loading mach-o symbol table");
         }
         buffer[byte_count] = 0; // just out of an abundance of caution
