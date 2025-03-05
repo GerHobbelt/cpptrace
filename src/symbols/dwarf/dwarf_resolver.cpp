@@ -62,11 +62,31 @@ namespace libdwarf {
     };
 
     struct line_table_info {
-        Dwarf_Unsigned version;
-        Dwarf_Line_Context line_context;
+        Dwarf_Unsigned version = 0;
+        Dwarf_Line_Context line_context = nullptr;
         // sorted by low_addr
         // TODO: Make this optional at some point, it may not be generated if cache mode switches during program exec...
         std::vector<line_entry> line_entries;
+
+        line_table_info(
+            Dwarf_Unsigned version,
+            Dwarf_Line_Context line_context,
+            std::vector<line_entry>&& line_entries
+        ) : version(version), line_context(line_context), line_entries(std::move(line_entries)) {}
+        ~line_table_info() {
+            dwarf_srclines_dealloc_b(line_context);
+        }
+        line_table_info(const line_table_info&) = delete;
+        line_table_info(line_table_info&& other) {
+            *this = std::move(other);
+        }
+        line_table_info& operator=(const line_table_info&) = delete;
+        line_table_info& operator=(line_table_info&& other) {
+            std::swap(version, other.version);
+            std::swap(line_context, other.line_context);
+            std::swap(line_entries, other.line_entries);
+            return *this;
+        }
     };
 
     class dwarf_resolver;
@@ -80,7 +100,10 @@ namespace libdwarf {
 
     class dwarf_resolver : public symbol_resolver {
         std::string object_path;
-        Dwarf_Debug dbg = nullptr;
+        // dwarf_finish needs to be called after all other dwarf stuff is cleaned up, e.g. `srcfiles` and aranges etc
+        // raii_wrapping ensures this is the last thing done after the destructor logic and all other data members are
+        // cleaned up
+        raii_wrapper<Dwarf_Debug, void(*)(Dwarf_Debug)> dbg{nullptr, [](Dwarf_Debug dbg) { dwarf_finish(dbg); }};
         bool ok = false;
         // .debug_aranges cache
         Dwarf_Arange* aranges = nullptr;
@@ -93,7 +116,7 @@ namespace libdwarf {
         std::vector<cu_entry> cu_cache;
         bool generated_cu_cache = false;
         // Map from CU -> {srcfiles, count}
-        std::unordered_map<Dwarf_Off, std::pair<char**, Dwarf_Signed>> srcfiles_cache;
+        std::unordered_map<Dwarf_Off, srcfiles> srcfiles_cache;
         // Map from CU -> split full cu resolver
         std::unordered_map<Dwarf_Off, std::unique_ptr<dwarf_resolver>> split_full_cu_resolvers;
         // info for resolving a dwo object
@@ -166,6 +189,7 @@ namespace libdwarf {
             if(use_buffer) {
                 buffer = std::unique_ptr<char[]>(new char[CPPTRACE_MAX_PATH]);
             }
+            dwarf_set_de_alloc_flag(0);
             auto ret = wrap(
                 dwarf_init_path_a,
                 object_path.c_str(),
@@ -175,7 +199,7 @@ namespace libdwarf {
                 universal_number,
                 nullptr,
                 nullptr,
-                &dbg
+                &dbg.get()
             );
             if(ret == DW_DLV_OK) {
                 ok = true;
@@ -199,23 +223,13 @@ namespace libdwarf {
 
         CPPTRACE_FORCE_NO_INLINE_FOR_PROFILING
         ~dwarf_resolver() override {
-            // TODO: Maybe redundant since dwarf_finish(dbg); will clean up the line stuff anyway but may as well just
-            // for thoroughness
-            for(auto& entry : line_tables) {
-                dwarf_srclines_dealloc_b(entry.second.line_context);
-            }
-            for(auto& entry : srcfiles_cache) {
-                dwarf_dealloc(dbg, entry.second.first, DW_DLA_LIST);
-            }
-            // subprograms_cache needs to be destroyed before dbg otherwise there will be another use after free
-            subprograms_cache.clear();
-            split_full_cu_resolvers.clear();
-            skeleton.reset();
             if(aranges) {
+                for(int i = 0; i < arange_count; i++) {
+                    dwarf_dealloc(dbg, aranges[i], DW_DLA_ARANGE);
+                    aranges[i] = nullptr;
+                }
                 dwarf_dealloc(dbg, aranges, DW_DLA_LIST);
             }
-            cu_cache.clear();
-            dwarf_finish(dbg);
         }
 
         dwarf_resolver(const dwarf_resolver&) = delete;
@@ -343,11 +357,11 @@ namespace libdwarf {
                 char** dw_srcfiles;
                 Dwarf_Signed dw_filecount;
                 VERIFY(wrap(dwarf_srcfiles, cu_die.get(), &dw_srcfiles, &dw_filecount) == DW_DLV_OK);
+                srcfiles srcfiles(cu_die.dbg, dw_srcfiles, dw_filecount);
                 if(Dwarf_Signed(file_i) < dw_filecount) {
                     // dwarf is using 1-indexing
-                    filename = dw_srcfiles[file_i];
+                    filename = srcfiles.get(file_i);
                 }
-                dwarf_dealloc(cu_die.dbg, dw_srcfiles, DW_DLA_LIST);
             } else {
                 auto off = cu_die.get_global_offset();
                 auto it = srcfiles_cache.find(off);
@@ -355,13 +369,11 @@ namespace libdwarf {
                     char** dw_srcfiles;
                     Dwarf_Signed dw_filecount;
                     VERIFY(wrap(dwarf_srcfiles, cu_die.get(), &dw_srcfiles, &dw_filecount) == DW_DLV_OK);
-                    it = srcfiles_cache.insert(it, {off, {dw_srcfiles, dw_filecount}});
+                    it = srcfiles_cache.insert(it, {off, srcfiles{cu_die.dbg, dw_srcfiles, dw_filecount}});
                 }
-                char** dw_srcfiles = it->second.first;
-                Dwarf_Signed dw_filecount = it->second.second;
-                if(Dwarf_Signed(file_i) < dw_filecount) {
+                if(file_i < it->second.count()) {
                     // dwarf is using 1-indexing
-                    filename = dw_srcfiles[file_i];
+                    filename = it->second.get(file_i);
                 }
             }
             return filename;
@@ -682,24 +694,6 @@ namespace libdwarf {
                             }
                         }
                         line = line_buffer[j - 1];
-                        // {
-                        //     Dwarf_Unsigned line_number = 0;
-                        //     VERIFY(wrap(dwarf_lineno, line, &line_number) == DW_DLV_OK);
-                        //     frame.line = static_cast<std::uint32_t>(line_number);
-                        //     char* filename = nullptr;
-                        //     VERIFY(wrap(dwarf_linesrc, line, &filename) == DW_DLV_OK);
-                        //     auto wrapper = raii_wrap(
-                        //         filename,
-                        //         [this] (char* str) { if(str) dwarf_dealloc(dbg, str, DW_DLA_STRING); }
-                        //     );
-                        //     frame.filename = filename;
-                        //     printf("%s : %d\n", filename, line_number);
-                        //     Dwarf_Bool is_line_end;
-                        //     VERIFY(wrap(dwarf_lineendsequence, line, &is_line_end) == DW_DLV_OK);
-                        //     if(is_line_end) {
-                        //         puts("Line end");
-                        //     }
-                        // }
                         line_entries.push_back({
                             low_addr,
                             line
@@ -712,7 +706,7 @@ namespace libdwarf {
                     });
                 }
 
-                it = line_tables.insert({off, {version, line_context, std::move(line_entries)}}).first;
+                it = line_tables.insert({off, line_table_info{version, line_context, std::move(line_entries)}}).first;
                 return it->second;
             }
         }
