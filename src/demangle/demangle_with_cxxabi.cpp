@@ -13,13 +13,12 @@
 
 namespace cpptrace {
 namespace detail {
-    std::string demangle(const std::string& name) {
-        // TODO: Do a special check to ensure external names start with _Z?
-        // // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#demangler
-        // // check both _Z and __Z, apple prefixes all symbols with an underscore
-        // if(!(starts_with(name, "_Z") || starts_with(name, "__Z"))) {
-        //     return name;
-        // }
+    std::string demangle(const std::string& name, bool check_prefix) {
+        // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#demangler
+        // Check both _Z and __Z, apple prefixes all symbols with an underscore
+        if(check_prefix && !(starts_with(name, "_Z") || starts_with(name, "__Z"))) {
+            return name;
+        }
         // Apple clang demangles __Z just fine but gcc doesn't, so just offset the leading underscore
         std::size_t offset = 0;
         if(starts_with(name, "__Z")) {
@@ -40,13 +39,14 @@ namespace detail {
         // it appears safe to pass nullptr for status however the docs don't explicitly say it's safe so I don't
         // want to rely on it
         int status;
-        char* const demangled = abi::__cxa_demangle(to_demangle.get().c_str() + offset, nullptr, nullptr, &status);
+        auto demangled = raii_wrap(
+            abi::__cxa_demangle(to_demangle.get().c_str() + offset, nullptr, nullptr, &status),
+            [] (char* str) { std::free(str); }
+        );
         // demangled will always be nullptr on non-zero status, and if __cxa_demangle ever fails for any reason
         // we'll just quietly return the mangled name
-        if(demangled) {
-            // TODO: raii_wrap the char*?
-            std::string str = demangled;
-            std::free(demangled);
+        if(demangled.get()) {
+            std::string str = demangled.get();
             if(!rest.empty()) {
                 str += rest;
             }

@@ -9,6 +9,8 @@
 #include <functional>
 #include <type_traits>
 
+#if !defined(_WIN32)
+
 #ifdef CPPTRACE_USE_NESTED_LIBDWARF_HEADER_PATH
  #include <libdwarf/libdwarf.h>
  #include <libdwarf/dwarf.h>
@@ -27,11 +29,9 @@ namespace libdwarf {
 
     [[noreturn]] inline void handle_dwarf_error(Dwarf_Debug dbg, Dwarf_Error error) {
         Dwarf_Unsigned ev = dwarf_errno(error);
-        const char* msg = dwarf_errmsg(error);
-        // dwarf_dealloc_error deallocates the message
-        auto error_message = microfmt::format("dwarf error {} {}", ev, msg);
-        dwarf_dealloc_error(dbg, error);
-        throw internal_error(std::move(error_message));
+        // dwarf_dealloc_error deallocates the message, attaching to msg is convenient
+        auto msg = raii_wrap(dwarf_errmsg(error), [dbg, error] (char*) { dwarf_dealloc_error(dbg, error); });
+        throw internal_error(microfmt::format("dwarf error {} {}", ev, msg.get()));
     }
 
     struct die_object {
@@ -68,8 +68,12 @@ namespace libdwarf {
         }
 
         ~die_object() {
+            release();
+        }
+
+        void release() {
             if(die) {
-                dwarf_dealloc_die(die);
+                dwarf_dealloc_die(exchange(die, nullptr));
             }
         }
 
@@ -77,16 +81,15 @@ namespace libdwarf {
 
         die_object& operator=(const die_object&) = delete;
 
-        die_object(die_object&& other) noexcept : dbg(other.dbg), die(other.die) {
-            // done for finding mistakes, attempts to use the die_object after this should segfault
-            // a valid use otherwise would be moved_from.get_sibling() which would get the next CU
-            other.dbg = nullptr;
-            other.die = nullptr;
-        }
+        // dbg doesn't strictly have to be st to null but it helps ensure attempts to use the die_object after this to
+        // segfault. A valid use otherwise would be moved_from.get_sibling() which would get the next CU.
+        die_object(die_object&& other) noexcept
+            : dbg(exchange(other.dbg, nullptr)), die(exchange(other.die, nullptr)) {}
 
         die_object& operator=(die_object&& other) noexcept {
-            std::swap(dbg, other.dbg);
-            std::swap(die, other.die);
+            release();
+            dbg = exchange(other.dbg, nullptr);
+            die = exchange(other.die, nullptr);
             return *this;
         }
 
@@ -133,8 +136,8 @@ namespace libdwarf {
         std::string get_name() const {
             char empty[] = "";
             char* name = empty;
+            // Note: It's important to not free the string from this function.
             int ret = wrap(dwarf_diename, die, &name);
-            auto wrapper = raii_wrap(name, [this] (char* str) { dwarf_dealloc(dbg, str, DW_DLA_STRING); });
             std::string str;
             if(ret != DW_DLV_NO_ENTRY) {
                 str = name;
@@ -147,8 +150,9 @@ namespace libdwarf {
             if(wrap(dwarf_attr, die, attr_num, &attr) == DW_DLV_OK) {
                 auto attwrapper = raii_wrap(attr, [] (Dwarf_Attribute attr) { dwarf_dealloc_attribute(attr); });
                 char* raw_str;
+                // Note: It's important to not free the string from this function.
+                // https://github.com/davea42/libdwarf-code/issues/279
                 VERIFY(wrap(dwarf_formstring, attr, &raw_str) == DW_DLV_OK);
-                auto strwrapper = raii_wrap(raw_str, [this] (char* str) { dwarf_dealloc(dbg, str, DW_DLA_STRING); });
                 std::string str = raw_str;
                 return str;
             } else {
@@ -536,5 +540,7 @@ namespace libdwarf {
 }
 }
 }
+
+#endif
 
 #endif

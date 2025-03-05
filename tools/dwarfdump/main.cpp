@@ -1,3 +1,4 @@
+
 #include <lyra/lyra.hpp>
 #include <fmt/format.h>
 #include <fmt/std.h>
@@ -6,6 +7,8 @@
 #include <cpptrace/from_current.hpp>
 
 #include <filesystem>
+
+#if !defined(_WIN32)
 
 #include "symbols/dwarf/dwarf.hpp"
 
@@ -149,31 +152,45 @@ public:
     }
 };
 
-int main(int argc, char** argv) CPPTRACE_TRY {
-    bool show_help = false;
-    std::filesystem::path path;
-    auto cli = lyra::cli()
-        | lyra::help(show_help)
-        | lyra::arg(path, "binary path")("binary to dwarfdump").required();
-    if(auto result = cli.parse({ argc, argv }); !result) {
-        fmt::println(stderr, "Error in command line: {}", result.message());
-        fmt::println("{}", cli);
-        return 1;
-    }
-    if(show_help) {
-        fmt::println("{}", cli);
-        return 0;
-    }
-    if(!std::filesystem::exists(path)) {
-        fmt::println(stderr, "Error: Path doesn't exist {}", path);
-        return 1;
-    }
-    if(!std::filesystem::is_regular_file(path)) {
-        fmt::println(stderr, "Error: Path isn't a regular file {}", path);
-        return 1;
-    }
-    DwarfDumper{}.dump(path);
-} CPPTRACE_CATCH(const std::exception& e) {
-    fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
-    cpptrace::from_current_exception().print();
+extern "C"
+int main(int argc, const char** argv) {
+	CPPTRACE_TRY{
+		bool show_help = false;
+		std::filesystem::path path;
+		auto cli = lyra::cli()
+			| lyra::help(show_help)
+			| lyra::arg(path, "binary path")("binary to dwarfdump").required();
+		if (auto result = cli.parse({ argc, argv }); !result) {
+			fmt::println(stderr, "Error in command line: {}", result.message());
+			fmt::println("{}", cli);
+			return 1;
+		}
+		if (show_help) {
+			fmt::println("{}", cli);
+			return 0;
+		}
+		if (!std::filesystem::exists(path)) {
+			fmt::println(stderr, "Error: Path doesn't exist {}", path);
+			return 1;
+		}
+		if (!std::filesystem::is_regular_file(path)) {
+			fmt::println(stderr, "Error: Path isn't a regular file {}", path);
+			return 1;
+		}
+		DwarfDumper{}.dump(path);
+	} CPPTRACE_CATCH(const std::exception& e) {
+		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
+		cpptrace::from_current_exception().print();
+	}
+	return 0;
 }
+
+#else
+
+extern "C"
+int main(int argc, const char** argv) {
+	fmt::println(stderr, "Error: {}\n", "dwarfdump is not available for the Win32/Win64 platform.");
+	return 1;
+}
+
+#endif

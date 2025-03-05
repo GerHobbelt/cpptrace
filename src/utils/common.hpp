@@ -24,10 +24,24 @@
  #define NODISCARD
 #endif
 
+// workaround a bizarre gcc bug https://godbolt.org/z/s78vnf7jv
+// https://github.com/jeremy-rifkin/cpptrace/issues/220
+#if defined(__GNUC__) && (__GNUC__ < 7)
+ #undef NODISCARD
+ #define NODISCARD
+#endif
+
 #if IS_MSVC
  #define MSVC_CDECL __cdecl
 #else
  #define MSVC_CDECL
+#endif
+
+// support is pretty good https://godbolt.org/z/djTqv7WMY, checked in cmake during config
+#ifdef HAS_ATTRIBUTE_PACKED
+ #define PACKED __attribute__((packed))
+#else
+ #define PACKED
 #endif
 
 namespace cpptrace {

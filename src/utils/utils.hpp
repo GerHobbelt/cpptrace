@@ -162,9 +162,9 @@ namespace detail {
     // shamelessly stolen from stackoverflow
     bool directory_exists(const std::string& path);
 
-    inline std::string basename(const std::string& path) {
+    inline std::string basename(const std::string& path, bool maybe_windows = false) {
         // Assumes no trailing /'s
-        auto pos = path.rfind('/');
+        auto pos = path.find_last_of(maybe_windows ? "/\\" : "/");
         if(pos == std::string::npos) {
             return path;
         } else {
@@ -201,25 +201,19 @@ namespace detail {
     // Also allow file_wrapper file = std::fopen(object_path.c_str(), "rb");
     template<
         typename T,
-        typename D
-        // workaround for:
+        typename D,
+        // Note: Previously checked if D was invocable and returned void but this kept causing problems for MSVC
         //  == 19.38-specific msvc bug https://developercommunity.visualstudio.com/t/MSVC-1938331290-preview-fails-to-comp/10505565
         //  <= 19.23 msvc also appears to fail (but for a different reason https://godbolt.org/z/6Y5EvdWPK)
-        #if !defined(_MSC_VER) || !(_MSC_VER <= 1923 || _MSC_VER == 1938)
-         ,
-         typename std::enable_if<
-             std::is_same<decltype(std::declval<D>()(std::declval<T>())), void>::value,
-             int
-         >::type = 0,
-         typename std::enable_if<
-             std::is_standard_layout<T>::value && std::is_trivial<T>::value,
-             int
-         >::type = 0,
-         typename std::enable_if<
-             std::is_nothrow_move_constructible<T>::value,
-             int
-         >::type = 0
-        #endif
+        //  <= 19.39 msvc also has trouble with it for different reasons https://godbolt.org/z/aPPPT7z3z
+        typename std::enable_if<
+            std::is_standard_layout<T>::value && std::is_trivial<T>::value,
+            int
+        >::type = 0,
+        typename std::enable_if<
+            std::is_nothrow_move_constructible<T>::value,
+            int
+        >::type = 0
     >
     class raii_wrapper {
         T obj;
@@ -251,22 +245,7 @@ namespace detail {
         }
     };
 
-    template<
-        typename T,
-        typename D
-        // workaround a msvc bug https://developercommunity.visualstudio.com/t/MSVC-1938331290-preview-fails-to-comp/10505565
-        #if !defined(_MSC_VER) || _MSC_VER != 1938
-         ,
-         typename std::enable_if<
-             std::is_same<decltype(std::declval<D>()(std::declval<T>())), void>::value,
-             int
-         >::type = 0,
-         typename std::enable_if<
-             std::is_standard_layout<T>::value && std::is_trivial<T>::value,
-             int
-         >::type = 0
-        #endif
-    >
+    template<typename T, typename D>
     raii_wrapper<typename std::remove_reference<T>::type, D> raii_wrap(T obj, D deleter) {
         return raii_wrapper<typename std::remove_reference<T>::type, D>(obj, deleter);
     }
@@ -279,6 +258,11 @@ namespace detail {
 
     using file_wrapper = raii_wrapper<std::FILE*, void(*)(std::FILE*)>;
 
+    template<class T, class... Args>
+    auto make_unique(Args&&... args) -> typename std::enable_if<!std::is_array<T>::value, std::unique_ptr<T>>::type {
+        return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
+    }
+
     template<typename T>
     class maybe_owned {
         std::unique_ptr<T> owned;
@@ -289,7 +273,40 @@ namespace detail {
         T* operator->() {
             return ptr;
         }
+        T& operator*() {
+            return *ptr;
+        }
     };
+
+    template<typename F>
+    class scope_guard {
+        F f;
+        bool active;
+    public:
+        template<
+            typename G,
+            typename std::enable_if<!std::is_same<typename std::decay<G>::type, scope_guard<F>>::value, int>::type = 0
+        >
+        scope_guard(G&& f) : f(std::forward<F>(f)), active(true) {}
+        ~scope_guard() {
+            if(active) {
+                f();
+            }
+        }
+        scope_guard(const scope_guard&) = delete;
+        scope_guard(scope_guard&& other) : f(std::move(other.f)), active(exchange(other.active, false)) {}
+        scope_guard& operator=(const scope_guard&) = delete;
+        scope_guard& operator=(scope_guard&& other) {
+            f = std::move(other.f);
+            active = exchange(other.active, false);
+            return *this;
+        }
+    };
+
+    template<typename F>
+    NODISCARD auto scope_exit(F&& f) -> scope_guard<F> {
+        return scope_guard<F>(std::forward<F>(f));
+    }
 }
 }
 

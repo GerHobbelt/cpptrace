@@ -62,7 +62,7 @@ namespace cpptrace {
         try {
             std::vector<stacktrace_frame> trace = detail::resolve_frames(frames);
             for(auto& frame : trace) {
-                frame.symbol = detail::demangle(frame.symbol);
+                frame.symbol = detail::demangle(frame.symbol, true);
             }
             return {std::move(trace)};
         } catch(...) { // NOSONAR
@@ -109,7 +109,7 @@ namespace cpptrace {
         try {
             std::vector<stacktrace_frame> trace = detail::resolve_frames(frames);
             for(auto& frame : trace) {
-                frame.symbol = detail::demangle(frame.symbol);
+                frame.symbol = detail::demangle(frame.symbol, true);
             }
             return {std::move(trace)};
         } catch(...) { // NOSONAR
@@ -137,7 +137,6 @@ namespace cpptrace {
     }
 
     std::string stacktrace_frame::to_string(bool color) const {
-        // return frame_to_string(color, *this);
         return get_default_formatter().format(*this, color);
     }
 
@@ -312,7 +311,7 @@ namespace cpptrace {
             std::vector<frame_ptr> frames = detail::capture_frames(skip + 1, max_depth);
             std::vector<stacktrace_frame> trace = detail::resolve_frames(frames);
             for(auto& frame : trace) {
-                frame.symbol = detail::demangle(frame.symbol);
+                frame.symbol = detail::demangle(frame.symbol, true);
             }
             return {std::move(trace)};
         } catch(...) { // NOSONAR
@@ -333,5 +332,9 @@ namespace cpptrace {
 
     bool can_signal_safe_unwind() {
         return detail::has_safe_unwind();
+    }
+
+    bool can_get_safe_object_frame() {
+        return detail::has_get_safe_object_frame();
     }
 }

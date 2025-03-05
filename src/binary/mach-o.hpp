@@ -63,7 +63,7 @@ namespace detail {
 
         struct symtab_info_data {
             symtab_command symtab;
-            std::unique_ptr<char[]> stringtab;
+            optional<std::vector<char>> stringtab;
             Result<const char*, internal_error> get_string(std::size_t index) const;
         };
 
@@ -131,12 +131,14 @@ namespace detail {
         template<std::size_t Bits>
         Result<nlist_64, internal_error> load_symtab_entry(std::uint32_t symbol_base, std::size_t index) const;
 
-        Result<std::unique_ptr<char[]>, internal_error> load_string_table(std::uint32_t offset, std::uint32_t byte_count) const;
+        Result<std::vector<char>, internal_error> load_string_table(std::uint32_t offset, std::uint32_t byte_count) const;
 
         bool should_swap() const;
     };
 
     Result<bool, internal_error> macho_is_fat(const std::string& object_path);
+
+    NODISCARD Result<maybe_owned<mach_o>, internal_error> open_mach_o_cached(const std::string& object_path);
 }
 }
 

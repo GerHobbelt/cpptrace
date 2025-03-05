@@ -9,7 +9,7 @@ set(package_name "cpptrace")
 
 project(
   cpptrace
-  VERSION 0.7.5
+  VERSION 0.8.2
   DESCRIPTION "Simple, portable, and self-contained stacktrace library for C++11 and newer "
   HOMEPAGE_URL "https://github.com/jeremy-rifkin/cpptrace"
   LANGUAGES C CXX
@@ -34,12 +34,20 @@ endif()
 if(PROJECT_IS_TOP_LEVEL)
   if(CMAKE_GENERATOR STREQUAL "Ninja")
     if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
-      SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+      include(CheckCXXCompilerFlag)
+      check_cxx_compiler_flag(-fdiagnostics-color=always HAS_CXX_FDIAGNOSTICS_COLOR)
+      if(HAS_CXX_FDIAGNOSTICS_COLOR)
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fdiagnostics-color=always")
+      endif()
     elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
       SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fcolor-diagnostics")
     endif()
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-      SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always")
+      include(CheckCCompilerFlag)
+      check_c_compiler_flag(-fdiagnostics-color=always HAS_C_FDIAGNOSTICS_COLOR)
+      if(HAS_C_FDIAGNOSTICS_COLOR)
+        SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fdiagnostics-color=always")
+      endif()
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "AppleClang")
       SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fcolor-diagnostics")
     endif()
@@ -121,6 +129,7 @@ target_sources(
     src/demangle/demangle_with_winapi.cpp
     src/snippets/snippet.cpp
     src/symbols/dwarf/debug_map_resolver.cpp
+    src/symbols/dwarf/dwarf_options.cpp
     src/symbols/dwarf/dwarf_resolver.cpp
     src/symbols/symbols_core.cpp
     src/symbols/symbols_with_addr2line.cpp
@@ -137,7 +146,7 @@ target_sources(
     src/unwind/unwind_with_winapi.cpp
     src/utils/microfmt.cpp
     src/utils/utils.cpp
-    src/platform/dbghelp_syminit_manager.cpp
+    src/platform/dbghelp_utils.cpp
 )
 
 target_include_directories(
@@ -174,6 +183,11 @@ target_compile_options(
   PRIVATE
   ${warning_options}
 )
+
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 6.0)
+  # https://godbolt.org/z/qYh89E6rq
+  target_compile_options(${target_name} PRIVATE -Wno-missing-field-initializers)
+endif()
 
 set(CPPTRACE_VERSION_MAJOR ${CMAKE_PROJECT_VERSION_MAJOR})
 set(CPPTRACE_VERSION_MINOR ${CMAKE_PROJECT_VERSION_MINOR})
@@ -221,6 +235,10 @@ target_compile_features(
 )
 
 target_compile_definitions(${target_name} PRIVATE NOMINMAX)
+
+if(HAS_ATTRIBUTE_PACKED)
+  target_compile_definitions(${target_name} PRIVATE HAS_ATTRIBUTE_PACKED)
+endif()
 
 if(NOT CPPTRACE_STD_FORMAT)
   target_compile_definitions(${target_name} PUBLIC CPPTRACE_NO_STD_FORMAT)
