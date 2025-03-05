@@ -18,6 +18,8 @@
 #include "symbols/symbols.hpp"
 #include "demangle/demangle.hpp"
 
+#include <cpptrace/monolithic_examples.h>
+
 using namespace std::literals;
 using namespace cpptrace::detail;
 
@@ -52,6 +54,11 @@ void resolve(const options& opts, cpptrace::frame_ptr address) {
         fmt::println("resolve time: {}", duration);
     }
 }
+
+
+#if defined(BUILD_MONOLITHIC)
+#define main cpptrace_resolver_tool_main
+#endif
 
 extern "C"
 int main(int argc, const char** argv) {

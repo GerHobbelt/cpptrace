@@ -11,6 +11,8 @@
 #include "binary/elf.hpp"
 #include "binary/mach-o.hpp"
 
+#include <cpptrace/monolithic_examples.h>
+
 using namespace std::literals;
 using namespace cpptrace::detail;
 
@@ -51,6 +53,11 @@ void dump_symbols(const std::filesystem::path& path) {
 void dump_symbols(const std::filesystem::path&) {
     fmt::println("Unable to dump symbol table on this platform");
 }
+#endif
+
+
+#if defined(BUILD_MONOLITHIC)
+#define main cpptrace_symbol_tables_tool_main
 #endif
 
 extern "C"

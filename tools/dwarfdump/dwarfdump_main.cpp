@@ -8,6 +8,14 @@
 
 #include <filesystem>
 
+#include <cpptrace/monolithic_examples.h>
+
+
+#if defined(BUILD_MONOLITHIC)
+#define main cpptrace_dwarfdump_tool_main
+#endif
+
+
 #if !defined(_WIN32)
 
 #include "symbols/dwarf/dwarf.hpp"

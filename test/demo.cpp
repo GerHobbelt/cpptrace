@@ -6,7 +6,7 @@
 #include <iostream>
 #include <string>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
 
 namespace {
 

@@ -4,9 +4,15 @@
 #include <cpptrace/from_current.hpp>
 #include <iostream>
 
+#include <cpptrace/monolithic_examples.h>
+
 static void foo() {
     throw std::runtime_error("foo failed");
 }
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_try_catch_demo_main
+#endif
 
 int main(void) {
     return CPPTRACE_TRY {

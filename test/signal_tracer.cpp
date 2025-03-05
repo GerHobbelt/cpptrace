@@ -8,7 +8,7 @@
 
 #include <cpptrace/cpptrace.hpp>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
 
 #if defined(BUILD_MONOLITHIC)
 #define main  cpptrace_signal_tracer_main
@@ -30,5 +30,5 @@ int main(void) {
         }
     }
     trace.resolve().print();
-		return 0;
+	return 0;
 }

@@ -3,7 +3,7 @@
 #include <limits.h>
 #include <stdio.h>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
 
 static void trace(void) {
     ctrace_raw_trace raw_trace = ctrace_generate_raw_trace(1, INT_MAX);

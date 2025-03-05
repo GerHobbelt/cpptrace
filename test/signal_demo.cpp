@@ -5,9 +5,16 @@
 #include <iostream>
 #include <string>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
+
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_signal_demo_main
+#endif
+
 
 #ifndef _WIN32
+
 #include <sys/wait.h>
 #include <signal.h>
 #include <csignal>
@@ -86,9 +93,6 @@ void warmup_cpptrace(void) {
 
 } // namespace
 
-#if defined(BUILD_MONOLITHIC)
-#define main  cpptrace_signal_demo_main
-#endif
 
 extern "C"
 int main(void) {
@@ -106,6 +110,16 @@ int main(void) {
 
     foo();
 		return 0;
+}
+
+#else
+
+#include <cstdio>
+
+extern "C"
+int main(void) {
+	fprintf(stderr, "Error: %s\n", "signal_demo is not available for the Win32/Win64 platform.");
+	return 1;
 }
 
 #endif

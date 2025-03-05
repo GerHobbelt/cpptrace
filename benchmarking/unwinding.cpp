@@ -4,7 +4,7 @@
 
 #include <iostream>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
 
 #define BENCHMARK_FAMILY_ID   "cpptrace"
 

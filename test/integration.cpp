@@ -7,7 +7,7 @@
 #include <string>
 #include <vector>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
 
 namespace {
 
@@ -136,6 +136,7 @@ void custom_print(const cpptrace::stacktrace& trace) {
 }
 
 } // namespace
+
 
 #if defined(BUILD_MONOLITHIC)
 #define main  cpptrace_integration_main
