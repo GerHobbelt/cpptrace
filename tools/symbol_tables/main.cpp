@@ -48,7 +48,7 @@ void dump_symbols(const std::filesystem::path& path) {
     fmt::println("Not implemented yet (TODO)");
 }
 #else
-void dump_symbols(const std::filesystem::path& path) {
+void dump_symbols(const std::filesystem::path&) {
     fmt::println("Unable to dump symbol table on this platform");
 }
 #endif
@@ -79,10 +79,11 @@ int main(int argc, const char** argv) {
 			return 1;
 		}
 		dump_symbols(path);
+        return 0;
 	}
 	CPPTRACE_CATCH(const std::exception& e) {
 		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
 		cpptrace::from_current_exception().print();
+        return 2;
 	}
-	return 0;
 }

@@ -103,15 +103,28 @@ namespace detail {
         // https://learn.microsoft.com/en-us/windows/win32/debug/initializing-the-symbol-handler
         // Apparently duplicating the process handle is the idiomatic thing to do and this avoids issues of
         // SymInitialize being called twice.
-        // TODO: Fallback on failure
+        // DuplicateHandle requires the PROCESS_DUP_HANDLE access right. If for some reason DuplicateHandle we fall back
+        // to calling SymInitialize on the process handle.
+        optional<DWORD> maybe_duplicate_handle_error_code;
         if(!DuplicateHandle(proc, proc, proc, &duplicated_handle.get(), 0, FALSE, DUPLICATE_SAME_ACCESS)) {
-            throw internal_error("DuplicateHandle failed{}", GetLastError());
+            maybe_duplicate_handle_error_code = GetLastError();
         }
-        if(!SymInitialize(duplicated_handle.get(), NULL, TRUE)) {
-            throw internal_error("SymInitialize failed{}", GetLastError());
+        if(!SymInitialize(maybe_duplicate_handle_error_code ? proc : duplicated_handle.get(), NULL, TRUE)) {
+            if(maybe_duplicate_handle_error_code) {
+                throw internal_error(
+                    "SymInitialize failed with error code {} after DuplicateHandle failed with error code {}",
+                    GetLastError(),
+                    maybe_duplicate_handle_error_code.unwrap()
+                );
+            } else {
+                throw internal_error("SymInitialize failed with error code {}", GetLastError());
+            }
         }
 
-        auto info = dbghelp_syminit_info::make_owned(exchange(duplicated_handle.get(), nullptr), true);
+        auto info = dbghelp_syminit_info::make_owned(
+            maybe_duplicate_handle_error_code ? proc : exchange(duplicated_handle.get(), nullptr),
+            !maybe_duplicate_handle_error_code
+        );
         // either cache and return a view or return the owning wrapper
         if(get_cache_mode() == cache_mode::prioritize_speed) {
             auto& syminit_cache = get_syminit_cache();
@@ -128,7 +141,6 @@ namespace detail {
     std::unique_lock<std::recursive_mutex> get_dbghelp_lock() {
         return std::unique_lock<std::recursive_mutex>{dbghelp_lock};
     }
-
 }
 }
 
