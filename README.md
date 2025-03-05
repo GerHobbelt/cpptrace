@@ -142,7 +142,7 @@ include(FetchContent)
 FetchContent_Declare(
   cpptrace
   GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v0.7.5 # <HASH or TAG>
+  GIT_TAG        v0.8.0 # <HASH or TAG>
 )
 FetchContent_MakeAvailable(cpptrace)
 target_link_libraries(your_target cpptrace::cpptrace)
@@ -785,6 +785,7 @@ namespace cpptrace {
     };
     void get_safe_object_frame(frame_ptr address, safe_object_frame* out);
     bool can_signal_safe_unwind();
+    bool can_get_safe_object_frame();
 }
 ```
 
@@ -801,9 +802,9 @@ see the comprehensive overview and demo at [signal-safe-tracing.md](docs/signal-
 > [!IMPORTANT]
 > Currently signal-safe stack unwinding is only possible with `libunwind`, which must be
 > [manually enabled](#library-back-ends). If signal-safe unwinding isn't supported, `safe_generate_raw_trace` will just
-> produce an empty trace. `can_signal_safe_unwind` can be used to check for signal-safe unwinding support. If object
-> information can't be resolved in a signal-safe way then `get_safe_object_frame` will not populate fields beyond the
-> `raw_address`.
+> produce an empty trace. `can_signal_safe_unwind` can be used to check for signal-safe unwinding support and
+> `can_get_safe_object_frame` can be used to check `get_safe_object_frame` support. If object information can't be
+> resolved in a signal-safe way then `get_safe_object_frame` will not populate fields beyond the `raw_address`.
 
 > [!IMPORTANT]
 > `_dl_find_object` is required for signal-safe stack tracing. This is a relatively recent addition to glibc, added in
@@ -940,7 +941,7 @@ include(FetchContent)
 FetchContent_Declare(
   cpptrace
   GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v0.7.5 # <HASH or TAG>
+  GIT_TAG        v0.8.0 # <HASH or TAG>
 )
 FetchContent_MakeAvailable(cpptrace)
 target_link_libraries(your_target cpptrace::cpptrace)
@@ -956,7 +957,7 @@ information.
 
 ```sh
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v0.7.5
+git checkout v0.8.0
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -999,7 +1000,7 @@ you when installing new libraries.
 
 ```ps1
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v0.7.5
+git checkout v0.8.0
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -1017,7 +1018,7 @@ To install just for the local user (or any custom prefix):
 
 ```sh
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v0.7.5
+git checkout v0.8.0
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/wherever
@@ -1100,7 +1101,7 @@ make install
 cd ~/scratch/cpptrace-test
 git clone https://github.com/jeremy-rifkin/cpptrace.git
 cd cpptrace
-git checkout v0.7.5
+git checkout v0.8.0
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On -DCPPTRACE_USE_EXTERNAL_LIBDWARF=On -DCMAKE_PREFIX_PATH=~/scratch/cpptrace-test/resources -DCMAKE_INSTALL_PREFIX=~/scratch/cpptrace-test/resources
@@ -1120,7 +1121,7 @@ cpptrace and its dependencies.
 Cpptrace is available through conan at https://conan.io/center/recipes/cpptrace.
 ```
 [requires]
-cpptrace/0.7.5
+cpptrace/0.8.0
 [generators]
 CMakeDeps
 CMakeToolchain
