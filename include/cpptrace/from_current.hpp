@@ -106,7 +106,7 @@ namespace cpptrace {
          }(); \
      } catch(param)
 #define CPPTRACE_TRY_END \
-     return 42;
+     return 42; \
  }()
 #else
  #define CPPTRACE_TRY \
@@ -128,7 +128,7 @@ namespace cpptrace {
          } catch(::cpptrace::detail::unconditional_unwind_interceptor&) {} \
      } catch(param)
 #define CPPTRACE_TRY_END \
-     return 42;
+     return 42; \
  }()
 #endif
 
@@ -142,6 +142,8 @@ namespace cpptrace {
  #define TRYZ CPPTRACE_TRYZ
  #define CATCHZ(param) CPPTRACE_CATCHZ(param)
  #define CATCH_ALT(param) CPPTRACE_CATCH_ALT(param)
+ #define TRY_END CPPTRACE_TRY_END
+
 #endif
 
 #endif

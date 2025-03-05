@@ -449,7 +449,7 @@ void foo() {
     throw std::runtime_error("foo failed");
 }
 int main() {
-    int rv = CPPTRACE_TRY {
+    return CPPTRACE_TRY {
         foo();
 		return 0;
     } CPPTRACE_CATCH(const std::exception& e) {
@@ -458,7 +458,6 @@ int main() {
 		return 66;
     }
     CPPTRACE_TRY_END;
-	return rv;
 }
 ```
 
@@ -534,6 +533,7 @@ TRY {
     std::cerr<<"Exception: "<<e.what()<<std::endl;
     cpptrace::from_current_exception().print();
 }
+TRY_END;
 ```
 
 This is not done by default for macro safety/hygiene reasons. If you do not want `TRY`/`CATCH` macros defined, as they
@@ -545,6 +545,7 @@ are common macro names, you can easily modify the following snippet to provide y
 #define TRYZ CPPTRACE_TRYZ
 #define CATCHZ(param) CPPTRACE_CATCHZ(param)
 #define CATCH_ALT(param) CPPTRACE_CATCH_ALT(param)
+#define TRY_END_ CPPTRACE_TRY_END_
 ```
 
 ### How it works

@@ -55,7 +55,7 @@ void dump_symbols(const std::filesystem::path&) {
 
 extern "C"
 int main(int argc, const char** argv) {
-	CPPTRACE_TRY{
+	return CPPTRACE_TRY{
 		bool show_help = false;
 		std::filesystem::path path;
 		auto cli = lyra::cli()
@@ -86,4 +86,5 @@ int main(int argc, const char** argv) {
 		cpptrace::from_current_exception().print();
         return 2;
 	}
+	CPPTRACE_TRY_END;
 }

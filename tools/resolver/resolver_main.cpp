@@ -55,7 +55,7 @@ void resolve(const options& opts, cpptrace::frame_ptr address) {
 
 extern "C"
 int main(int argc, const char** argv) {
-  int rv = CPPTRACE_TRY{
+  return CPPTRACE_TRY{
     options opts;
     auto cli = lyra::cli()
         | lyra::help(opts.show_help)
@@ -111,5 +111,4 @@ int main(int argc, const char** argv) {
 	return 66;
   }
   CPPTRACE_TRY_END;
-  return rv;
 }

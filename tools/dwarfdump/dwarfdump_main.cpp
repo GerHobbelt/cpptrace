@@ -154,7 +154,7 @@ public:
 
 extern "C"
 int main(int argc, const char** argv) {
-	CPPTRACE_TRY{
+	return CPPTRACE_TRY{
 		bool show_help = false;
 		std::filesystem::path path;
 		auto cli = lyra::cli()
@@ -182,6 +182,7 @@ int main(int argc, const char** argv) {
 		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
 		cpptrace::from_current_exception().print();
 	}
+	CPPTRACE_TRY_END;
 	return 0;
 }
 
