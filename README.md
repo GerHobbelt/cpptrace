@@ -352,6 +352,7 @@ namespace cpptrace {
         formatter& columns(bool);
         formatter& filtered_frame_placeholders(bool);
         formatter& filter(std::function<bool(const stacktrace_frame&)>);
+        formatter& transform(std::function<stacktrace_frame(stacktrace_frame)>);
 
         std::string format(const stacktrace_frame&) const;
         std::string format(const stacktrace_frame&, bool color) const;
@@ -388,6 +389,7 @@ Options:
 | `columns`                     | Whether to include column numbers if present                   | `true`                                                                   |
 | `filtered_frame_placeholders` | Whether to still print filtered frames as just `#n (filtered)` | `true`                                                                   |
 | `filter`                      | A predicate to filter frames with                              | None                                                                     |
+| `transform`                   | A transformer which takes a stacktrace frame and modifies it   | None                                                                     |
 
 The `automatic` color mode attempts to detect if a stream that may be attached to a terminal. As such, it will not use
 colors for the `formatter::format` method and it may not be able to detect if some ostreams correspond to terminals or
@@ -403,6 +405,20 @@ namespace cpptrace {
     const formatter& get_default_formatter();
 }
 ```
+
+### Transforming
+
+A transform function can be specified for the formatter. This function is called before the configured `filter` is
+checked. For example:
+
+```cpp
+auto formatter = cpptrace::formatter{}
+    .transform([](cpptrace::stacktrace_frame frame) {
+        frame.symbol = replace_all(frame, "std::__cxx11::", "std::");
+        return frame;
+    });
+```
+
 
 ## Configuration
 
@@ -893,6 +909,46 @@ Explanation:
 - `set_dwarf_resolver_disable_aranges` can be used to disable use of dwarf `.debug_aranges`, an accelerated range lookup
   table for compile units emitted by many compilers. Cpptrace uses these by default if they are present since they can
   speed up resolution, however, they can also result in significant memory usage.
+
+## JIT Support
+
+Cpptrace has support for resolving symbols from frames in JIT-compiled code. To do this, cpptrace relies on in-memory
+object files (elf on linux or mach-o on mac) that contain symbol tables and dwarf debug information. The main reason for
+this is many JIT implementations already produce these for debugger support.
+
+These in-memory object files must be set up in such a way that the symbol table and debug symbol addresses match the
+run-time addresses of the JIT code.
+
+The basic interface for informing cpptrace about these in-memory object files is as follows:
+
+```cpp
+namespace cpptrace {
+    void register_jit_object(const char*, std::size_t);
+    void unregister_jit_object(const char*);
+    void clear_all_jit_objects();
+}
+```
+
+Many JIT implementations follow the GDB [JIT Compilation Interface][jitci] so that JIT code can be debugged. The
+interface, at a high level, entails adding in-memory object files to a linked list of object files that GDB and other
+debuggers can reference (stored in the `__jit_debug_descriptor`). Cpptrace provides, as a utility, a mechanism for
+loading all in-memory object files present in the `__jit_debug_descriptor` linked list via `<cpptrace/gdb_jit.hpp>`:
+
+```cpp
+namespace cpptrace {
+    namespace experimental {
+        void register_jit_objects_from_gdb_jit_interface();
+    }
+}
+```
+
+Note: Your program must be able to link against a global C symbol `__jit_debug_descriptor`.
+
+Note: Calling `cpptrace::experimental::register_jit_objects_from_gdb_jit_interface` clears all jit objects previously
+registered with cpptrace.
+
+
+[jitci]: https://sourceware.org/gdb/current/onlinedocs/gdb.html/JIT-Interface.html
 
 # Supported Debug Formats
 
