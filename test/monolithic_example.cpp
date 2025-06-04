@@ -10,7 +10,7 @@
 // declare your own monolith dispatch table:
 MONOLITHIC_CMD_TABLE_START()
 
-{ "benchmark", { .f = cpptrace_benchmark_main } },
+{ "benchmark", { .fa = cpptrace_benchmark_main } },
 { "asi_test", { .f = cpptrace_asi_test_main } },
 { "ctrace_demo", { .f = cpptrace_ctrace_demo_main } },
 { "demo", { .f = cpptrace_demo_main } },
@@ -20,7 +20,7 @@ MONOLITHIC_CMD_TABLE_START()
 { "signal_demo", { .f = cpptrace_signal_demo_main } },
 { "signal_tracer", { .f = cpptrace_signal_tracer_main } },
 { "try_catch_demo", { .f = cpptrace_try_catch_demo_main } },
-{ "tests", { .f = cpptrace_tests_main } },
+{ "tests", { .fa = cpptrace_tests_main } },
 
 { "dwarfdump", { .fa = cpptrace_dwarfdump_tool_main } },
 { "resolver", { .fa = cpptrace_resolver_tool_main } },
