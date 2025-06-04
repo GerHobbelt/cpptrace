@@ -22,6 +22,7 @@ namespace detail {
     #if IS_MSVC
     #pragma warning(push)
     #pragma warning(disable: 4740) // warning C4740: flow in or out of inline asm code suppresses global optimization
+    #pragma comment(lib, "Dbghelp.lib")
     #endif
     CPPTRACE_FORCE_NO_INLINE
     std::vector<frame_ptr> capture_frames(std::size_t skip, std::size_t max_depth) {
