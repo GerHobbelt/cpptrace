@@ -5,10 +5,13 @@
 <br/>
 [![Community Discord Link](https://img.shields.io/badge/Chat%20on%20the%20(very%20small)-Community%20Discord-blue?labelColor=2C3239&color=7289DA&style=flat&logo=discord&logoColor=959DA5)](https://discord.gg/frjaAZvqUZ)
 <br/>
-[![Try on Compiler Explorer](https://img.shields.io/badge/-Compiler%20Explorer-brightgreen?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAQCAYAAAAmlE46AAAACXBIWXMAAACwAAAAsAEUaqtpAAABSElEQVQokYVTsU7DMBB9QMTCEJbOMLB5oF0tRfUPIPIJZctYJkZYu3WMxNL+ARUfQKpImcPgDYnsXWBgYQl61TkYyxI3Wef37j3fnQ/6vkcsikY9AbiWq0mpbevDBmLRqDEAA4CEHMADgFRwrwDmch6X2i73RCFVHvC/WCeCMAFpC2AFoPPu5x4md4rnAN4luS61nYWSgauNU8ydkr0bLTMYAoIYtWqxM4LtEumeERDtfUjlMDrp7L67iddyyJtOvUIu2rquVn4iiVSOKXYhiMSJWLwUJZLuQ2CWmVldV4MT11UmXgB8fr0dX3WP6VHMiVrscim6Da2mJxffzwSU2v6xWzSKmzQ4cUTOaCBTvWgU14xkzjhckKm/q3wnrRAcAhksxMZNAdxEf0fRKI6E8zqT1C0X28ccRpqAUltW5pu4sxv5Mb8B4AciE3bHMxz/+gAAAABJRU5ErkJggg==&labelColor=2C3239&style=flat&label=Try+it+on&color=30C452)](https://godbolt.org/z/c6TqTzqcf)
+[![Try on Compiler Explorer](https://img.shields.io/badge/-Compiler%20Explorer-brightgreen?logo=data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAA4AAAAQCAYAAAAmlE46AAAACXBIWXMAAACwAAAAsAEUaqtpAAABSElEQVQokYVTsU7DMBB9QMTCEJbOMLB5oF0tRfUPIPIJZctYJkZYu3WMxNL+ARUfQKpImcPgDYnsXWBgYQl61TkYyxI3Wef37j3fnQ/6vkcsikY9AbiWq0mpbevDBmLRqDEAA4CEHMADgFRwrwDmch6X2i73RCFVHvC/WCeCMAFpC2AFoPPu5x4md4rnAN4luS61nYWSgauNU8ydkr0bLTMYAoIYtWqxM4LtEumeERDtfUjlMDrp7L67iddyyJtOvUIu2rquVn4iiVSOKXYhiMSJWLwUJZLuQ2CWmVldV4MT11UmXgB8fr0dX3WP6VHMiVrscim6Da2mJxffzwSU2v6xWzSKmzQ4cUTOaCBTvWgU14xkzjhckKm/q3wnrRAcAhksxMZNAdxEf0fRKI6E8zqT1C0X28ccRpqAUltW5pu4sxv5Mb8B4AciE3bHMxz/+gAAAABJRU5ErkJggg==&labelColor=2C3239&style=flat&label=Try+it+on&color=30C452)](https://godbolt.org/z/aP8PsxxeY)
 
-Cpptrace is a simple and portable C++ stacktrace library supporting C++11 and greater on Linux, macOS,
-and Windows including MinGW and Cygwin environments. The goal: Make stack traces simple for once.
+Cpptrace is a simple and portable C++ stacktrace library supporting C++11 and greater on Linux, macOS, and Windows
+including MinGW and Cygwin environments. The goal: Make stack traces simple for once.
+
+In addition to providing access to stack traces, cpptrace also provides a mechanism for getting stacktraces from thrown
+exceptions which is immensely valuable for debugging and triaging. More info [below](#traces-from-all-exceptions-cpptrace_try-and-cpptrace_catch).
 
 Cpptrace also has a C API, docs [here](docs/c-api.md).
 
@@ -87,8 +90,8 @@ Cpptrace can also retrieve function inlining information on optimized release bu
 
 ![Inlining](res/inlining.png)
 
-Cpptrace provides access to resolved stack traces as well as lightweight raw traces (just addresses) that can be
-resolved later:
+Cpptrace provides access to resolved stack traces as well as fast and lightweight raw traces (just addresses) that can
+be resolved later:
 
 ```cpp
 const auto raw_trace = cpptrace::generate_raw_trace();
@@ -96,13 +99,17 @@ const auto raw_trace = cpptrace::generate_raw_trace();
 raw_trace.resolve().print();
 ```
 
-Cpptrace provides a way to produce stack traces on arbitrary exceptions. More information on this system
-[below](#traces-from-all-exceptions).
+One of the most important features cpptrace offers is the ability to retrieve stack traces on arbitrary exceptions.
+More information on this system [below]((#traces-from-all-exceptions-cpptrace_try-and-cpptrace_catch)).
 ```cpp
 #include <cpptrace/from_current.hpp>
+#include <iostream>
+#include <stdexcept>
+
 void foo() {
     throw std::runtime_error("foo failed");
 }
+
 int main() {
     int rv = 2;
     CPPTRACE_TRY {
@@ -139,8 +146,9 @@ Additional notable features:
 - Utilities for demangling
 - Utilities for catching `std::exception`s and wrapping them in traced exceptions
 - Signal-safe stack tracing
+  - As far as I can tell cpptrace is the only library which can truly do this in a signal-safe manner
 - Source code snippets in traces
-- Extensive configuration options for [trace formatting](#formatting)
+- Extensive configuration options for [trace formatting](#formatting) and pretty-printing
 
 ![Snippets](res/snippets.png)
 
@@ -151,7 +159,7 @@ include(FetchContent)
 FetchContent_Declare(
   cpptrace
   GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v0.8.3 # <HASH or TAG>
+  GIT_TAG        v1.0.0 # <HASH or TAG>
 )
 FetchContent_MakeAvailable(cpptrace)
 target_link_libraries(your_target cpptrace::cpptrace)
@@ -593,7 +601,7 @@ CPPTRACE_TRY {
 CPPTRACE_TRY_END;
 ```
 
-> [!WARNING]
+> [!IMPORTANT]
 > There is an unfortunate limitation with `return` statements in these try/catch macros: The implementation on Windows
 > requires wrapping the try body in an immediately-invoked lambda and and as such `return` statements would return from
 > the lambda not the enclosing function. Cpptrace guards against misleading `return`s compiling by requiring the lambdas
@@ -607,7 +615,7 @@ CPPTRACE_TRY_END;
 > }
 > ```
 
-> [!WARNING]
+> [!IMPORTANT]
 > There is a footgun which is mainly relevant for code that was written on an older version of cpptrace: It's possible
 > to write the following without getting errors
 > ```cpp
@@ -1272,7 +1280,7 @@ include(FetchContent)
 FetchContent_Declare(
   cpptrace
   GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v0.8.3 # <HASH or TAG>
+  GIT_TAG        v1.0.0 # <HASH or TAG>
 )
 FetchContent_MakeAvailable(cpptrace)
 target_link_libraries(your_target cpptrace::cpptrace)
@@ -1288,7 +1296,7 @@ information.
 
 ```sh
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v0.8.3
+git checkout v1.0.0
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -1331,7 +1339,7 @@ you when installing new libraries.
 
 ```ps1
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v0.8.3
+git checkout v1.0.0
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -1349,7 +1357,7 @@ To install just for the local user (or any custom prefix):
 
 ```sh
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v0.8.3
+git checkout v1.0.0
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/wherever
@@ -1432,7 +1440,7 @@ make install
 cd ~/scratch/cpptrace-test
 git clone https://github.com/jeremy-rifkin/cpptrace.git
 cd cpptrace
-git checkout v0.8.3
+git checkout v1.0.0
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On -DCPPTRACE_USE_EXTERNAL_LIBDWARF=On -DCMAKE_PREFIX_PATH=~/scratch/cpptrace-test/resources -DCMAKE_INSTALL_PREFIX=~/scratch/cpptrace-test/resources
@@ -1452,7 +1460,7 @@ cpptrace and its dependencies.
 Cpptrace is available through conan at https://conan.io/center/recipes/cpptrace.
 ```
 [requires]
-cpptrace/0.8.3
+cpptrace/1.0.0
 [generators]
 CMakeDeps
 CMakeToolchain
