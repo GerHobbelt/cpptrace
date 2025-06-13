@@ -80,6 +80,7 @@ CPPTRACE_BEGIN_NAMESPACE
 
     // cpptrace/utils
     export using cpptrace::demangle;
+    export using cpptrace::prune_symbol;
     export using cpptrace::get_snippet;
     export using cpptrace::isatty;
     export using cpptrace::stdin_fileno;
@@ -100,6 +101,9 @@ CPPTRACE_BEGIN_NAMESPACE
         export using cpptrace::experimental::set_cache_mode;
         export using cpptrace::experimental::set_dwarf_resolver_line_table_cache_size;
         export using cpptrace::experimental::set_dwarf_resolver_disable_aranges;
-        export using cpptrace::experimental::load_symbols_for_file;
     }
+
+    #ifdef _WIN32
+     export using cpptrace::load_symbols_for_file;
+    #endif
 CPPTRACE_END_NAMESPACE

@@ -25,7 +25,6 @@ Cpptrace also has a C API, docs [here](docs/c-api.md).
   - [Utilities](#utilities)
   - [Formatting](#formatting)
     - [Transforms](#transforms)
-    - [Formatting Utilities](#formatting-utilities)
   - [Configuration](#configuration)
     - [Logging](#logging)
   - [Traces From All Exceptions (`CPPTRACE_TRY` and `CPPTRACE_CATCH`)](#traces-from-all-exceptions-cpptrace_try-and-cpptrace_catch)
@@ -302,8 +301,17 @@ namespace cpptrace {
 
 ## Utilities
 
-`cpptrace::demangle` provides a helper function for name demangling, since it has to implement that helper internally
-anyways.
+`cpptrace::demangle` is a helper function for name demangling, since it has to implement that helper internally anyways.
+
+`cpptrace::basename` is a helper for custom formatters that extracts a base file name from a path.
+
+`cpptrace::prettify_symbol` is a helper for custom formatters that applies a number of transformations to clean up long
+symbol names. For example, it turns `std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >`
+into `std::string`.
+
+`cpptrace::prune_symbol` is a helper for custom formatters that prunes demangled symbols by removing return types,
+template arguments, and function parameters. It also does some minimal normalization. For example, it prunes
+`ns::S<int, float>::~S()` to `ns::S::~S`. If cpptrace is unable to parse the symbol it will return the original symbol.
 
 `cpptrace::get_snippet` gets a text snippet, if possible, from for the given source file for +/- `context_size` lines
 around `line`.
@@ -316,12 +324,19 @@ stack trace from a cpptrace exception (more info below) and otherwise behaves li
 ```cpp
 namespace cpptrace {
     std::string demangle(const std::string& name);
+
+    std::string basename(const std::string& path);
+
+    std::string prettify_symbol(std::string symbol);
+    std::string prune_symbol(const std::string& symbol);
+
     std::string get_snippet(
         const std::string& path,
         std::size_t line,
         std::size_t context_size,
         bool color = false
     );
+
     bool isatty(int fd);
 
     extern const int stdin_fileno;
@@ -359,7 +374,8 @@ namespace cpptrace {
         formatter& snippets(bool);
         formatter& snippet_context(int);
         formatter& columns(bool);
-        formatter& prettify_symbols(bool);
+        enum class symbol_mode { full, pretty, pruned };
+        formatter& symbols(symbol_mode);
         formatter& filtered_frame_placeholders(bool);
         formatter& filter(std::function<bool(const stacktrace_frame&)>);
         formatter& transform(std::function<stacktrace_frame(stacktrace_frame)>);
@@ -388,28 +404,32 @@ namespace cpptrace {
 ```
 
 Options:
-| Setting                       | Description                                                    | Default                                                                  |
-| ----------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------ |
-| `header`                      | Header line printed before the trace                           | `Stack trace (most recent call first):`                                  |
-| `colors`                      | Default color mode for the trace                               | `automatic`, which attempts to detect if the target stream is a terminal |
-| `addresses`                   | Raw addresses, object addresses, or no addresses               | `raw`                                                                    |
-| `paths`                       | Full paths or just filenames                                   | `full`                                                                   |
-| `snippets`                    | Whether to include source code snippets                        | `false`                                                                  |
-| `snippet_context`             | How many lines of source context to show in a snippet          | `2`                                                                      |
-| `columns`                     | Whether to include column numbers if present                   | `true`                                                                   |
-| `prettify_symbols`            | Whether to attempt to clean up long symbol names               | `false`                                                                  |
-| `filtered_frame_placeholders` | Whether to still print filtered frames as just `#n (filtered)` | `true`                                                                   |
-| `filter`                      | A predicate to filter frames with                              | None                                                                     |
-| `transform`                   | A transformer which takes a stacktrace frame and modifies it   | None                                                                     |
+| Setting                       | Description                                                        | Default                                                                  |
+| ----------------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `header`                      | Header line printed before the trace                               | `Stack trace (most recent call first):`                                  |
+| `colors`                      | Default color mode for the trace                                   | `automatic`, which attempts to detect if the target stream is a terminal |
+| `addresses`                   | Raw addresses, object addresses, or no addresses                   | `raw`                                                                    |
+| `paths`                       | Full paths or just filenames                                       | `full`                                                                   |
+| `snippets`                    | Whether to include source code snippets                            | `false`                                                                  |
+| `snippet_context`             | How many lines of source context to show in a snippet              | `2`                                                                      |
+| `columns`                     | Whether to include column numbers if present                       | `true`                                                                   |
+| `symbols`                     | Full demangled symbols, pruned symbol names, or prettified symbols | `full`                                                                   |
+| `filtered_frame_placeholders` | Whether to still print filtered frames as just `#n (filtered)`     | `true`                                                                   |
+| `filter`                      | A predicate to filter frames with                                  | None                                                                     |
+| `transform`                   | A transformer which takes a stacktrace frame and modifies it       | None                                                                     |
 
 The `automatic` color mode attempts to detect if a stream that may be attached to a terminal. As such, it will not use
 colors for the `formatter::format` method and it may not be able to detect if some ostreams correspond to terminals or
 not. For this reason, `formatter::format` and `formatter::print` methods have overloads taking a color parameter. This
 color parameter will override configured color mode.
 
-The `prettify_symbols` option applies a number of simple rewrite rules to symbols in an attempt to clean them up, e.g.
-it rewrites `foo(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >)`
-as `foo(std::vector<std::string>)`.
+The `symbols` option provides a few settings for pretty-printing symbol names. By default the full name is printed.
+- `symbol_mode::pretty` applies a number of transformations to clean up long symbol names. For example, it turns
+  `std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >` into `std::string`. This is
+  equivalent to `cpptrace::prettify_symbol`.
+- `symbol_mode::prune` prunes demangled symbols by removing return types, template arguments, and function parameters.
+  It also does some minimal normalization. For example, it prunes `ns::S<int, float>::~S()` to `ns::S::~S`. If cpptrace
+  is unable to parse the symbol it will uses the full symbol. This is equivalent to `cpptrace::prune_symbol`.
 
 Recommended practice with formatters: It's generally preferable to create formatters objects that are long-lived rather
 than to create them on the fly every time a trace needs to be formatted.
@@ -432,18 +452,6 @@ auto formatter = cpptrace::formatter{}
         frame.symbol = replace_all(frame, "std::__cxx11::", "std::");
         return frame;
     });
-```
-
-### Formatting Utilities
-
-Cpptrace exports a couple formatting utilities used internally which might be useful for custom formatters that don't
-use `cpptrace::formatter`:
-
-```cpp
-namespace cpptrace {
-    std::string basename(const std::string& path);
-    std::string prettify_symbol(std::string symbol);
-}
 ```
 
 ## Configuration
@@ -480,9 +488,10 @@ namespace cpptrace {
 
 ### Logging
 
-Cpptrace attempts to gracefully recover from any internal errors. By default, cpptrace doesn't log anything to the
-console in order to avoid interfering with user programs. However, there are a couple configurations that can be used
-to set a custom logging behavior or enable logging to stderr.
+Cpptrace attempts to gracefully recover from any internal errors in order to provide the best information it can and not
+interfere with user applications. However, sometimes it's important to see what's going wrong inside cpptrace if
+anything does go wrong. To facilitate this, cpptrace has an internal logger. By default it doesn't log anything out. The
+following configurations that can be used to set a custom logging callback or enable logging to stderr:
 
 ```cpp
 namespace cpptrace {
@@ -583,23 +592,23 @@ CPPTRACE_TRY {
 CPPTRACE_TRY_END;
 ```
 
-> [!CAUTION]
-> There is a footgun with `return` statements in these try/catch macros: The implementation on Windows requires wrapping
-> the try body in an immediately-invoked lambda and and as such `return` statements return from the lambda not the
-> enclosing function. If you're writing code that will be compiled on windows, it's important to not write `return`
-> statements within CPPTRACE_TRY. E.g., this does not work as expected on windows:
+> [!WARNING]
+> There is an unfortunate limitation with `return` statements in these try/catch macros: The implementation on Windows
+> requires wrapping the try body in an immediately-invoked lambda and and as such `return` statements would return from
+> the lambda not the enclosing function. Cpptrace guards against misleading `return`s compiling by requiring the lambdas
+> to return a special internal type, but, if you're writing code that will be compiled on windows it's important to not
+> write `return` statements within CPPTRACE_TRY. For example, this is invalid:
 > ```cpp
 > CPPTRACE_TRY {
->     if(condition) return 40; // does not return from the enclosing function on windows
+>     if(condition) return 40; // error, type int doesn't match cpptrace::detail::dont_return_from_try_catch_macros
 > } CPPTRACE_CATCH(const std::exception& e) {
 >     ...
 > }
-> return 20;
 > ```
 
 > [!WARNING]
-> There is one other footgun which is mainly relevant for code that was written on an older version of cpptrace: It's
-> possible to write the following without getting errors
+> There is a footgun which is mainly relevant for code that was written on an older version of cpptrace: It's possible
+> to write the following without getting errors
 > ```cpp
 > CPPTRACE_TRY {
 >     ...
@@ -609,9 +618,9 @@ CPPTRACE_TRY_END;
 >     ...
 > }
 > ```
-> This code will compile and in some sense work as expected as the second catch handler will work, however, cpptrace
-> won't know about the handler and as such it would be able to correctly collect a trace on a non-`std::runtime_error`
-> that is thrown. No run-time errors will occur, however, `from_current_exception` may report a misleading trace.
+> This code will compile and the second catch handler will work, however, cpptrace won't know about the handler and as
+> such it won't be able to correctly collect a trace when a type that does not match `std::runtime_error` is thrown. No
+> run-time errors will occur, however, `from_current_exception` will report a misleading trace.
 
 ### Removing the `CPPTRACE_` prefix
 
@@ -1214,23 +1223,28 @@ This section only applies to the dbghelp backend (`CPPTRACE_GET_SYMBOLS_WITH_DBG
 
 When loading a DLL at runtime with `LoadLibrary` after a stacktrace has already been generated,
 symbols from that library may not be resolved correctly for subsequent stacktraces. To fix this,
-call `cpptrace::experimental::load_symbols_for_file` with the same filename that was passed to
-`LoadLibrary`.
+call `cpptrace::load_symbols_for_file` with the same path that was passed to `LoadLibrary`.
 
 ```cpp
 HMODULE hModule = LoadLibrary("mydll.dll");
 if (hModule) {
-    cpptrace::experimental::load_symbols_for_file("mydll.dll");
+    cpptrace::load_symbols_for_file("mydll.dll");
 }
 ```
 
 For backends other than dbghelp, `load_symbols_for_file` does nothing. For platforms other than
 Windows, it is not declared.
 
+```cpp
+namespace cpptrace {
+    void load_symbols_for_file(const std::string& filename);
+}
+```
+
 # ABI Versioning
 
-Since cpptrace vX, the library uses an inline ABI versioning namespace and all symbols part of the public interface are
-secretly under the namespace `cpptrace::v1`. This is done to allow for potential future library evolution in an
+Since cpptrace v1.0.0, the library uses an inline ABI versioning namespace and all symbols part of the public interface
+are secretly under the namespace `cpptrace::v1`. This is done to allow for potential future library evolution in an
 ABI-friendly manner.
 
 # Supported Debug Formats

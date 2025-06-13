@@ -18,12 +18,18 @@
 
 CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_EXPORT std::string demangle(const std::string& name);
+
+    CPPTRACE_EXPORT std::string basename(const std::string& path);
+    CPPTRACE_EXPORT std::string prettify_symbol(std::string symbol);
+    CPPTRACE_EXPORT std::string prune_symbol(const std::string& symbol);
+
     CPPTRACE_EXPORT std::string get_snippet(
         const std::string& path,
         std::size_t line,
         std::size_t context_size,
         bool color = false
     );
+
     CPPTRACE_EXPORT bool isatty(int fd);
 
     CPPTRACE_EXPORT extern const int stdin_fileno;
@@ -62,9 +68,9 @@ CPPTRACE_BEGIN_NAMESPACE
     }
 
     // dbghelp
-    namespace experimental {
-        CPPTRACE_EXPORT void load_symbols_for_file(const std::string& filename);
-    }
+    #ifdef _WIN32
+     CPPTRACE_EXPORT void load_symbols_for_file(const std::string& filename);
+    #endif
 CPPTRACE_END_NAMESPACE
 
 #if !defined(BUILD_MONOLITHIC)
