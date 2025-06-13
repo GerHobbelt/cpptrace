@@ -122,6 +122,7 @@ target_sources(
     src/exceptions.cpp
     src/from_current.cpp
     src/formatting.cpp
+    src/logging.cpp
     src/options.cpp
     src/utils.cpp
     src/demangle/demangle_with_cxxabi.cpp
@@ -149,6 +150,7 @@ target_sources(
     src/utils/io/memory_file_view.cpp
     src/utils/error.cpp
     src/utils/microfmt.cpp
+    src/utils/replace_all.cpp
     src/utils/string_view.cpp
     src/utils/utils.cpp
     src/platform/dbghelp_utils.cpp

@@ -11,5 +11,6 @@ extern "C"
 int main(int argc, const char** argv) {
     testing::InitGoogleTest(&argc, argv);
     cpptrace::absorb_trace_exceptions(false);
+    cpptrace::use_default_stderr_logger();
     return RUN_ALL_TESTS();
 }

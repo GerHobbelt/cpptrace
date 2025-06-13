@@ -97,6 +97,7 @@ void warmup_cpptrace(void) {
 extern "C"
 int main(void) {
     cpptrace::absorb_trace_exceptions(false);
+    cpptrace::use_default_stderr_logger();
     cpptrace::register_terminate_handler();
     warmup_cpptrace();
 

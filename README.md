@@ -25,11 +25,14 @@ Cpptrace also has a C API, docs [here](docs/c-api.md).
   - [Utilities](#utilities)
   - [Formatting](#formatting)
     - [Transforms](#transforms)
+    - [Formatting Utilities](#formatting-utilities)
   - [Configuration](#configuration)
+    - [Logging](#logging)
   - [Traces From All Exceptions](#traces-from-all-exceptions)
     - [Removing the `CPPTRACE_` prefix](#removing-the-cpptrace_-prefix)
     - [How it works](#how-it-works)
     - [Performance](#performance)
+  - [Rethrowing Exceptions](#rethrowing-exceptions)
   - [Traced Exception Objects](#traced-exception-objects)
     - [Wrapping std::exceptions](#wrapping-stdexceptions)
     - [Exception handling with cpptrace exception objects](#exception-handling-with-cpptrace-exception-objects)
@@ -352,6 +355,7 @@ namespace cpptrace {
         formatter& snippets(bool);
         formatter& snippet_context(int);
         formatter& columns(bool);
+        formatter& prettify_symbols(bool);
         formatter& filtered_frame_placeholders(bool);
         formatter& filter(std::function<bool(const stacktrace_frame&)>);
         formatter& transform(std::function<stacktrace_frame(stacktrace_frame)>);
@@ -389,6 +393,7 @@ Options:
 | `snippets`                    | Whether to include source code snippets                        | `false`                                                                  |
 | `snippet_context`             | How many lines of source context to show in a snippet          | `2`                                                                      |
 | `columns`                     | Whether to include column numbers if present                   | `true`                                                                   |
+| `prettify_symbols`            | Whether to attempt to clean up long symbol names               | `false`                                                                  |
 | `filtered_frame_placeholders` | Whether to still print filtered frames as just `#n (filtered)` | `true`                                                                   |
 | `filter`                      | A predicate to filter frames with                              | None                                                                     |
 | `transform`                   | A transformer which takes a stacktrace frame and modifies it   | None                                                                     |
@@ -397,6 +402,10 @@ The `automatic` color mode attempts to detect if a stream that may be attached t
 colors for the `formatter::format` method and it may not be able to detect if some ostreams correspond to terminals or
 not. For this reason, `formatter::format` and `formatter::print` methods have overloads taking a color parameter. This
 color parameter will override configured color mode.
+
+The `prettify_symbols` option applies a number of simple rewrite rules to symbols in an attempt to clean them up, e.g.
+it rewrites `foo(std::vector<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> >, std::allocator<std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > > >)`
+as `foo(std::vector<std::string>)`.
 
 Recommended practice with formatters: It's generally preferable to create formatters objects that are long-lived rather
 than to create them on the fly every time a trace needs to be formatted.
@@ -419,6 +428,18 @@ auto formatter = cpptrace::formatter{}
         frame.symbol = replace_all(frame, "std::__cxx11::", "std::");
         return frame;
     });
+```
+
+### Formatting Utilities
+
+Cpptrace exports a couple formatting utilities used internally which might be useful for custom formatters that don't
+use `cpptrace::formatter`:
+
+```cpp
+namespace cpptrace {
+    std::string basename(const std::string& path);
+    std::string prettify_symbol(std::string symbol);
+}
 ```
 
 ## Configuration
@@ -452,6 +473,28 @@ namespace cpptrace {
     }
 }
 ```
+
+### Logging
+
+Cpptrace attempts to gracefully recover from any internal errors. By default, cpptrace doesn't log anything to the
+console in order to avoid interfering with user programs. However, there are a couple configurations that can be used
+to set a custom logging behavior or enable logging to stderr.
+
+```cpp
+namespace cpptrace {
+    enum class log_level { debug, info, warning, error };
+    void set_log_level(log_level level);
+    void set_log_callback(std::function<void(log_level, const char*)>);
+    void use_default_stderr_logger();
+}
+```
+
+`cpptrace::set_log_level`: Set cpptrace's internal log level. Default: `error`. Cpptrace currently only uses this log
+level internally.
+
+`cpptrace::set_log_callback`: Set the callback cpptrace uses for logging messages, useful for custom loggers.
+
+`cpptrace::use_default_stderr_logger`: Set's the logging callback to print to stderr.
 
 ## Traces From All Exceptions
 
@@ -613,6 +656,78 @@ handler in a 100-deep call stack the total time would stil be on the order of on
 
 Nonetheless, I chose a default bookkeeping behavior for `CPPTRACE_TRY`/`CPPTRACE_CATCH` since it is safer with better
 performance guarantees for the most general possible set of users.
+
+## Rethrowing Exceptions
+
+By default `cpptrace::from_current_exception` will correspond to a trace for the last `throw` intercepted by a
+`CPPTRACE_CATCH`. In order to rethrow an exception while preserving the original trace, `cpptrace::rethrow()` can be
+used.
+
+```cpp
+namespace cpptrace {
+    void rethrow();
+    void rethrow(std::exception_ptr exception = std::current_exception());
+}
+```
+
+> [!NOTE]
+> It's important to use `cpptrace::rethrow()` from within a `CPPTRACE_CATCH`. If it is not, then no trace for the
+> exception origin will have been collected.
+
+Example:
+
+```cpp
+void bar() {
+    throw std::runtime_error("critical error in bar");
+}
+void foo() {
+    CPPTRACE_TRY {
+        bar();
+    } CPPTRACE_CATCH(const std::exception& e) {
+        std::cerr<<"Exception in foo: "<<e.what()<<std::endl;
+        cpptrace::rethrow();
+    }
+}
+int main() {
+    CPPTRACE_TRY {
+        foo();
+    } CPPTRACE_CATCH(const std::exception& e) {
+        std::cerr<<"Exception encountered while running foo: "<<e.what()<<std::endl;
+        cpptrace::from_current_exception().print(); // prints trace containing main -> foo -> bar
+    }
+}
+```
+
+Sometimes it may be desirable to see both the trace for the exception's origin as well as the trace for where it was
+rethrown. Cpptrace provides an interface for getting the last rethrow location:
+
+```cpp
+namespace cpptrace {
+    const raw_trace& raw_trace_from_current_exception_rethrow();
+    const stacktrace& from_current_exception_rethrow();
+    bool current_exception_was_rethrown();
+}
+```
+
+If the current exception was not rethrown, these functions return references to empty traces.
+`current_exception_was_rethrown` can be used to check if the current exception was rethrown and a non-empty rethrow
+trace exists.
+
+Example usage, utilizing `foo` and `bar` from the above example:
+
+```cpp
+int main() {
+    CPPTRACE_TRY {
+        foo();
+    } CPPTRACE_CATCH(const std::exception& e) {
+        std::cerr<<"Exception encountered while running foo: "<<e.what()<<std::endl;
+        std::cerr<<"Thrown from:"<<std::endl;
+        cpptrace::from_current_exception().print(); // trace containing main -> foo -> bar
+        std::cerr<<"Rethrown from:"<<std::endl;
+        cpptrace::from_current_exception_rethrow().print(); // trace containing main -> foo
+    }
+}
+```
 
 ## Traced Exception Objects
 
@@ -860,6 +975,7 @@ namespace cpptrace {
             const raw_trace& get_raw_trace() const;
             stacktrace& get_resolved_trace();
             const stacktrace& get_resolved_trace() const; // throws if not already resolved
+            bool is_resolved() const;
         private:
             void clear();
         };
@@ -951,6 +1067,12 @@ registered with cpptrace.
 
 
 [jitci]: https://sourceware.org/gdb/current/onlinedocs/gdb.html/JIT-Interface.html
+
+# ABI Versioning
+
+Since cpptrace vX, the library uses an inline ABI versioning namespace and all symbols part of the public interface are
+secretly under the namespace `cpptrace::v1`. This is done to allow for potential future library evolution in an
+ABI-friendly manner.
 
 # Supported Debug Formats
 

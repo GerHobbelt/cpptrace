@@ -35,10 +35,12 @@ endmacro()
 add_executable(integration integration.cpp)
 add_executable(demo demo.cpp)
 add_executable(c_demo ctrace_demo.c)
+add_executable(link_test link_test.cpp)
 
 add_test_dependencies(integration)
 add_test_dependencies(demo)
 add_test_dependencies(c_demo)
+add_test_dependencies(link_test)
 
 if(UNIX)
   add_executable(signal_demo signal_demo.cpp)
@@ -83,6 +85,7 @@ if(NOT CPPTRACE_SKIP_UNIT)
     unit/tracing/from_current.cpp
     unit/tracing/from_current_z.cpp
     unit/tracing/traced_exception.cpp
+    unit/tracing/rethrow.cpp
     unit/internals/optional.cpp
     unit/internals/lru_cache.cpp
     unit/internals/result.cpp

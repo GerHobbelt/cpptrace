@@ -1,11 +1,39 @@
 #ifndef CPPTRACE_FROM_CURRENT_HPP
 #define CPPTRACE_FROM_CURRENT_HPP
 
+#include <exception>
+
 #include <cpptrace/basic.hpp>
 
-namespace cpptrace {
+// https://godbolt.org/z/4MsT6KqP1
+#ifdef _MSC_VER
+ #define CPPTRACE_UNREACHABLE() __assume(false)
+#else
+ #define CPPTRACE_UNREACHABLE() __builtin_unreachable()
+#endif
+
+// https://godbolt.org/z/7neGPEche
+// gcc added support in 4.8 but I'm too lazy to check the minor version
+#if defined(__GNUC__) && (__GNUC__ < 5)
+ #define CPPTRACE_NORETURN __attribute__((noreturn))
+#else
+ #define CPPTRACE_NORETURN [[noreturn]]
+#endif
+
+CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_EXPORT const raw_trace& raw_trace_from_current_exception();
     CPPTRACE_EXPORT const stacktrace& from_current_exception();
+
+    CPPTRACE_EXPORT const raw_trace& raw_trace_from_current_exception_rethrow();
+    CPPTRACE_EXPORT const stacktrace& from_current_exception_rethrow();
+
+    CPPTRACE_EXPORT bool current_exception_was_rethrown();
+
+    CPPTRACE_NORETURN CPPTRACE_EXPORT CPPTRACE_FORCE_NO_INLINE
+    void rethrow();
+
+    CPPTRACE_NORETURN CPPTRACE_EXPORT CPPTRACE_FORCE_NO_INLINE
+    void rethrow(std::exception_ptr exception);
 
     namespace detail {
         // Trace switch is to prevent multiple tracing of stacks on call stacks with multiple catches that don't
@@ -73,7 +101,7 @@ namespace cpptrace {
          #endif
         #endif
     }
-}
+CPPTRACE_END_NAMESPACE
 
 #ifdef _MSC_VER
  // this awful double-IILE is due to C2713 "You can't use structured exception handling (__try/__except) and C++
@@ -118,14 +146,14 @@ namespace cpptrace {
          _Pragma("GCC diagnostic pop") \
          try {
  #define CPPTRACE_CATCH(param) \
-         } catch(::cpptrace::detail::unwind_interceptor&) {} \
+         } catch(::cpptrace::detail::unwind_interceptor&) { CPPTRACE_UNREACHABLE(); } \
      } catch(param)
  #define CPPTRACE_TRYZ \
  [&]() -> int { \
       try { \
          try {
  #define CPPTRACE_CATCHZ(param) \
-         } catch(::cpptrace::detail::unconditional_unwind_interceptor&) {} \
+         } catch(::cpptrace::detail::unconditional_unwind_interceptor&) { CPPTRACE_UNREACHABLE(); } \
      } catch(param)
 #define CPPTRACE_TRY_END \
      return 42; \

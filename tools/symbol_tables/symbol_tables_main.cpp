@@ -14,7 +14,7 @@
 #include <cpptrace/monolithic_examples.h>
 
 using namespace std::literals;
-using namespace cpptrace::detail;
+using namespace cpptrace::internal;
 
 template<> struct fmt::formatter<lyra::cli> : ostream_formatter {};
 
