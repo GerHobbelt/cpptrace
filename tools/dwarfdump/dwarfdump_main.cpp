@@ -21,7 +21,7 @@
 #include "symbols/dwarf/dwarf.hpp"
 
 using namespace std::literals;
-using namespace cpptrace::internal::libdwarf;
+using namespace cpptrace::detail::libdwarf;
 
 template<> struct fmt::formatter<lyra::cli> : ostream_formatter {};
 

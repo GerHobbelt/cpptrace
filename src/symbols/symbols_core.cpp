@@ -1,5 +1,7 @@
 #include <cpptrace/basic.hpp>
+#include <cpptrace/utils.hpp>
 
+#include "cpptrace/forward.hpp"
 #include "symbols/symbols.hpp"
 
 #include <vector>
@@ -8,8 +10,8 @@
 #include "utils/error.hpp"
 #include "binary/object.hpp"
 
-namespace cpptrace {
-namespace internal {
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
     template<typename CollatedVec, typename Entry>
     std::unordered_map<std::string, CollatedVec> collate_frames(
         const std::vector<object_frame>& frames,
@@ -151,4 +153,18 @@ namespace internal {
         #endif
     }
 }
+CPPTRACE_END_NAMESPACE
+
+/*
+Fallback definition for cpptrace::experimental::load_symbols_for_file. If
+CPPTRACE_GET_SYMBOLS_WITH_DBGHELP is defined, this function is defined in symbols_with_dbghelp.cpp.
+*/
+#ifndef CPPTRACE_GET_SYMBOLS_WITH_DBGHELP
+CPPTRACE_BEGIN_NAMESPACE
+namespace experimental {
+    void load_symbols_for_file(const std::string& filename) {
+        (void)filename;
+    }
 }
+CPPTRACE_END_NAMESPACE
+#endif

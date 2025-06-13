@@ -44,18 +44,20 @@
  #define PACKED
 #endif
 
-namespace cpptrace {
-namespace internal {
-    static const stacktrace_frame null_frame {
-        0,
-        0,
-        nullable<std::uint32_t>::null(),
-        nullable<std::uint32_t>::null(),
-        "",
-        "",
-        false
-    };
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
+    inline stacktrace_frame null_frame() {
+        return {
+            0,
+            0,
+            nullable<std::uint32_t>::null(),
+            nullable<std::uint32_t>::null(),
+            "",
+            "",
+            false
+        };
+    }
 }
-}
+CPPTRACE_END_NAMESPACE
 
 #endif

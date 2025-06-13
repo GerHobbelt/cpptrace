@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <new>
 #include <stdexcept>
 #include <string>
@@ -12,6 +13,7 @@
 #include "utils/common.hpp"
 #include "options.hpp"
 #include "logging.hpp"
+#include "utils/error.hpp"
 
 CPPTRACE_BEGIN_NAMESPACE
     namespace detail {
@@ -70,9 +72,8 @@ CPPTRACE_BEGIN_NAMESPACE
                         resolved_trace = old_trace.resolve();
                     }
                 } catch(const std::exception& e) {
-                    if(!internal::should_absorb_trace_exceptions()) {
-                        // TODO: Append to message somehow?
-                        internal::log::error(
+                    if(!should_absorb_trace_exceptions()) {
+                        log::error(
                             "Exception occurred while resolving trace in cpptrace::detail::lazy_trace_holder: {}",
                             e.what()
                         );
@@ -105,9 +106,8 @@ CPPTRACE_BEGIN_NAMESPACE
             try {
                 return generate_raw_trace(skip + 1, max_depth);
             } catch(const std::exception& e) {
-                if(!internal::should_absorb_trace_exceptions()) {
-                    // TODO: Append to message somehow
-                    internal::log::error(
+                if(!should_absorb_trace_exceptions()) {
+                    log::error(
                         "Exception occurred while resolving trace in cpptrace::exception object: {}",
                         e.what()
                     );
@@ -121,9 +121,7 @@ CPPTRACE_BEGIN_NAMESPACE
             try { // try/catch can never be hit but it's needed to prevent TCO
                 return get_raw_trace_and_absorb(skip + 1, SIZE_MAX);
             } catch(...) {
-                if(!internal::should_absorb_trace_exceptions()) {
-                    throw;
-                }
+                detail::log_and_maybe_propagate_exception(std::current_exception());
                 return raw_trace{};
             }
         }
@@ -166,7 +164,7 @@ CPPTRACE_BEGIN_NAMESPACE
             } catch(std::exception& e) {
                 message_value = std::string("Nested exception: ") + e.what();
             } catch(...) {
-                message_value = "Nested exception holding instance of " + internal::exception_type_name();
+                message_value = "Nested exception holding instance of " + detail::exception_type_name();
             }
         }
         return message_value.c_str();

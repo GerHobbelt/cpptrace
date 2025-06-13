@@ -21,7 +21,7 @@
 #include <cpptrace/monolithic_examples.h>
 
 using namespace std::literals;
-using namespace cpptrace::internal;
+using namespace cpptrace::detail;
 
 template<> struct fmt::formatter<lyra::cli> : ostream_formatter {};
 
@@ -41,7 +41,7 @@ struct options {
 void resolve(const options& opts, cpptrace::frame_ptr address) {
     cpptrace::object_frame obj_frame{0, address, opts.path.string()};
     auto start = std::chrono::high_resolution_clock::now();
-    std::vector<cpptrace::stacktrace_frame> trace = cpptrace::internal::resolve_frames({obj_frame});
+    std::vector<cpptrace::stacktrace_frame> trace = cpptrace::detail::resolve_frames({obj_frame});
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
     if(trace.size() != 1) {
@@ -55,14 +55,7 @@ void resolve(const options& opts, cpptrace::frame_ptr address) {
     }
 }
 
-
-#if defined(BUILD_MONOLITHIC)
-#define main cpptrace_resolver_tool_main
-#endif
-
-extern "C"
-int main(int argc, const char** argv) {
-  return CPPTRACE_TRY{
+int resolver(int argc, char** argv) {
     options opts;
     auto cli = lyra::cli()
         | lyra::help(opts.show_help)
@@ -112,10 +105,22 @@ int main(int argc, const char** argv) {
         }
     }
     return 0;
-  } CPPTRACE_CATCH(const std::exception& e) {
-	fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
-	cpptrace::from_current_exception().print();
-	return 66;
-  }
-  CPPTRACE_TRY_END;
+}
+
+
+#if defined(BUILD_MONOLITHIC)
+#define main cpptrace_resolver_tool_main
+#endif
+
+extern "C"
+int main(int argc, const char** argv) {
+    int ret = 0;
+    CPPTRACE_TRY {
+        ret = resolver(argc, argv);
+    } CPPTRACE_CATCH(const std::exception& e) {
+        fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
+        cpptrace::from_current_exception().print();
+        ret = 1;
+    }
+    return ret;
 }

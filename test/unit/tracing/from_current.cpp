@@ -7,11 +7,17 @@
 #include <gmock/gmock.h>
 #include <gmock/gmock-matchers.h>
 
-#include <cpptrace/cpptrace.hpp>
-#include <cpptrace/from_current.hpp>
-
 #include "common.hpp"
 #include "utils/utils.hpp"
+
+#ifdef TEST_MODULE
+import cpptrace;
+
+#include <cpptrace/from_current_macros.hpp>
+#else
+#include <cpptrace/cpptrace.hpp>
+#include <cpptrace/from_current.hpp>
+#endif
 
 using namespace std::literals;
 
@@ -44,7 +50,7 @@ CPPTRACE_FORCE_NO_INLINE int stacktrace_from_current_1(std::vector<int>& line_nu
 TEST(FromCurrent, Basic) {
     std::vector<int> line_numbers;
     bool does_enter_catch = false;
-    auto guard = cpptrace::internal::scope_exit([&] {
+    auto guard = cpptrace::detail::scope_exit([&] {
         EXPECT_TRUE(does_enter_catch);
     });
     CPPTRACE_TRY {
@@ -99,12 +105,13 @@ TEST(FromCurrent, Basic) {
 
 TEST(FromCurrent, CorrectHandler) {
     std::vector<int> line_numbers;
+    bool wrong_handler = false;
     CPPTRACE_TRY {
         CPPTRACE_TRY {
             line_numbers.insert(line_numbers.begin(), __LINE__ + 1);
             stacktrace_from_current_1(line_numbers);
         } CPPTRACE_CATCH(const std::logic_error&) {
-            FAIL();
+            wrong_handler = true;
         }
     } CPPTRACE_CATCH(const std::exception& e) {
         EXPECT_EQ(e.what(), "foobar"sv);
@@ -125,6 +132,9 @@ TEST(FromCurrent, CorrectHandler) {
             }
         );
         EXPECT_NE(it, trace.frames.end());
+    }
+    if(wrong_handler) {
+        FAIL();
     }
 	CPPTRACE_TRY_END;
 }
@@ -162,7 +172,7 @@ TEST(FromCurrent, RawTrace) {
 TEST(FromCurrent, NonThrowingPath) {
     bool does_enter_catch = false;
     bool does_reach_end = false;
-    auto guard = cpptrace::internal::scope_exit([&] {
+    auto guard = cpptrace::detail::scope_exit([&] {
         EXPECT_FALSE(does_enter_catch);
         EXPECT_TRUE(does_reach_end);
     });

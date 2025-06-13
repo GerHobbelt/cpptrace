@@ -1,7 +1,15 @@
 #include "utils/error.hpp"
 
-namespace cpptrace {
-namespace internal {
+#include <cpptrace/utils.hpp>
+
+#include <exception>
+
+#include "platform/exception_type.hpp"
+#include "logging.hpp"
+#include "options.hpp"
+
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
     internal_error::internal_error(std::string message) : msg("Cpptrace internal error: " + std::move(message)) {}
 
     constexpr const char* assert_actions[] = {"assertion", "verification", "panic"};
@@ -50,5 +58,28 @@ namespace internal {
             );
         }
     }
+
+    void log_and_maybe_propagate_exception(std::exception_ptr ptr) {
+        try {
+            if(ptr) {
+                std::rethrow_exception(ptr);
+            }
+        } catch(const internal_error& e) {
+            log::error("Unhandled cpptrace internal error: {}", e.what());
+        } catch(const std::exception& e) {
+            log::error(
+                "Unhandled cpptrace internal error of type {}: {}",
+                cpptrace::demangle(typeid(e).name()),
+                e.what()
+            );
+        } catch(...) {
+            log::error("Unhandled cpptrace internal error of type {}", detail::exception_type_name());
+        }
+        if(!should_absorb_trace_exceptions()) {
+            if(ptr) {
+                std::rethrow_exception(ptr);
+            }
+        }
+    }
 }
-}
+CPPTRACE_END_NAMESPACE

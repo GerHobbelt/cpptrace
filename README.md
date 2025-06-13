@@ -43,6 +43,7 @@ Cpptrace also has a C API, docs [here](docs/c-api.md).
   - [Headers](#headers)
   - [Libdwarf Tuning](#libdwarf-tuning)
   - [JIT Support](#jit-support)
+  - [Loading Libraries at Runtime](#loading-libraries-at-runtime)
 - [ABI Versioning](#abi-versioning)
 - [Supported Debug Formats](#supported-debug-formats)
 - [How to Include The Library](#how-to-include-the-library)
@@ -54,6 +55,7 @@ Cpptrace also has a C API, docs [here](docs/c-api.md).
   - [Package Managers](#package-managers)
     - [Conan](#conan)
     - [Vcpkg](#vcpkg)
+  - [C++20 Moduels](#c20-moduels)
 - [Platform Logistics](#platform-logistics)
   - [Windows](#windows)
   - [macOS](#macos)
@@ -1206,6 +1208,25 @@ registered with cpptrace.
 
 [jitci]: https://sourceware.org/gdb/current/onlinedocs/gdb.html/JIT-Interface.html
 
+## Loading Libraries at Runtime
+
+This section only applies to the dbghelp backend (`CPPTRACE_GET_SYMBOLS_WITH_DBGHELP`) on Windows.
+
+When loading a DLL at runtime with `LoadLibrary` after a stacktrace has already been generated,
+symbols from that library may not be resolved correctly for subsequent stacktraces. To fix this,
+call `cpptrace::experimental::load_symbols_for_file` with the same filename that was passed to
+`LoadLibrary`.
+
+```cpp
+HMODULE hModule = LoadLibrary("mydll.dll");
+if (hModule) {
+    cpptrace::experimental::load_symbols_for_file("mydll.dll");
+}
+```
+
+For backends other than dbghelp, `load_symbols_for_file` does nothing. For platforms other than
+Windows, it is not declared.
+
 # ABI Versioning
 
 Since cpptrace vX, the library uses an inline ABI versioning namespace and all symbols part of the public interface are
@@ -1386,7 +1407,7 @@ make install
 cd ~/scratch/cpptrace-test
 git clone https://github.com/jeremy-rifkin/libdwarf-lite.git
 cd libdwarf-lite
-git checkout fe09ca800b988e2ff21225ac5e7468ceade2a30e
+git checkout 23044a5654d4abc45f0864a06d42144365d9a425 # 2.0.0
 mkdir build
 cd build
 cmake .. -DPIC_ALWAYS=On -DBUILD_DWARFDUMP=Off -DCMAKE_PREFIX_PATH=~/scratch/cpptrace-test/resources -DCMAKE_INSTALL_PREFIX=~/scratch/cpptrace-test/resources
@@ -1439,6 +1460,11 @@ vcpkg install cpptrace
 find_package(cpptrace CONFIG REQUIRED)
 target_link_libraries(main PRIVATE cpptrace::cpptrace)
 ```
+
+## C++20 Moduels
+
+Cpptrace supports C++20 modules: `import cpptrace;`. You'll need a modern toolchain in order to use C++20 modules (i.e.
+relatively new compilers, cmake, etc).
 
 # Platform Logistics
 

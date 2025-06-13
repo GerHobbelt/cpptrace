@@ -40,6 +40,7 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_EXPORT void set_log_level(log_level level);
     CPPTRACE_EXPORT void set_log_callback(std::function<void(log_level, const char*)>);
     CPPTRACE_EXPORT void use_default_stderr_logger();
+    CPPTRACE_EXPORT const char* to_string(log_level level);
 
     enum class cache_mode {
         // Only minimal lookup tables
@@ -58,6 +59,11 @@ CPPTRACE_BEGIN_NAMESPACE
     namespace experimental {
         CPPTRACE_EXPORT void set_dwarf_resolver_line_table_cache_size(nullable<std::size_t> max_entries);
         CPPTRACE_EXPORT void set_dwarf_resolver_disable_aranges(bool disable);
+    }
+
+    // dbghelp
+    namespace experimental {
+        CPPTRACE_EXPORT void load_symbols_for_file(const std::string& filename);
     }
 CPPTRACE_END_NAMESPACE
 

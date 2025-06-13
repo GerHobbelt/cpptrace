@@ -8,10 +8,16 @@
 #include <gmock/gmock.h>
 #include <gmock/gmock-matchers.h>
 
+#include "common.hpp"
+
+#ifdef TEST_MODULE
+import cpptrace;
+
+#include <cpptrace/from_current.hpp>
+#else
 #include <cpptrace/cpptrace.hpp>
 #include <cpptrace/from_current.hpp>
-
-#include "common.hpp"
+#endif
 
 using namespace std::literals;
 
@@ -30,15 +36,16 @@ CPPTRACE_FORCE_NO_INLINE int stacktrace_from_current_rethrow_3(std::vector<int>&
 
 CPPTRACE_FORCE_NO_INLINE
 int stacktrace_from_current_rethrow_2(std::vector<int>& line_numbers, std::vector<int>& rethrow_line_numbers) {
+    int ret;
     CPPTRACE_TRY {
         static volatile int lto_guard; lto_guard = lto_guard + 1;
         line_numbers.insert(line_numbers.begin(), __LINE__ + 1);
-        return stacktrace_from_current_rethrow_3(line_numbers) * rand();
+        ret = stacktrace_from_current_rethrow_3(line_numbers) * rand();
     } CPPTRACE_CATCH(const std::exception&) {
         rethrow_line_numbers.insert(rethrow_line_numbers.begin(), __LINE__ + 1);
         cpptrace::rethrow();
     }
-    CPPTRACE_UNREACHABLE(); // unfortunately needed under MSVC
+    return ret;
 }
 
 #ifdef _MSC_VER

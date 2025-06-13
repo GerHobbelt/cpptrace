@@ -1,11 +1,13 @@
 #include <cpptrace/cpptrace.hpp>
 #include <cpptrace/from_current.hpp>
 
+#include <cstdint>
 #include <exception>
 #include <system_error>
 #include <typeinfo>
 
 #include "platform/platform.hpp"
+#include "utils/error.hpp"
 #include "utils/microfmt.hpp"
 #include "utils/utils.hpp"
 #include "logging.hpp"
@@ -34,10 +36,10 @@
  #endif
 #endif
 
-namespace cpptrace {
-namespace internal {
-    thread_local detail::lazy_trace_holder current_exception_trace;
-    thread_local detail::lazy_trace_holder saved_rethrow_trace;
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
+    thread_local lazy_trace_holder current_exception_trace;
+    thread_local lazy_trace_holder saved_rethrow_trace;
 
     bool& get_rethrow_switch() {
         static thread_local bool rethrow_switch = false;
@@ -46,11 +48,11 @@ namespace internal {
 
     CPPTRACE_FORCE_NO_INLINE void collect_current_trace(std::size_t skip) {
         auto trace = cpptrace::generate_raw_trace(skip + 1);
-        if(internal::get_rethrow_switch()) {
-            internal::saved_rethrow_trace = detail::lazy_trace_holder(std::move(trace));
+        if(get_rethrow_switch()) {
+            saved_rethrow_trace = lazy_trace_holder(std::move(trace));
         } else {
-            internal::current_exception_trace = detail::lazy_trace_holder(std::move(trace));
-            internal::saved_rethrow_trace = detail::lazy_trace_holder();
+            current_exception_trace = lazy_trace_holder(std::move(trace));
+            saved_rethrow_trace = lazy_trace_holder();
         }
     }
 
@@ -174,11 +176,9 @@ namespace internal {
     int mprotect_page_and_return_old_protections(void* page, int page_size, int protections) {
         DWORD old_protections;
         if(!VirtualProtect(page, page_size, protections, &old_protections)) {
-            throw std::runtime_error(
-                microfmt::format(
-                    "VirtualProtect call failed: {}",
-                    std::system_error(GetLastError(), std::system_category()).what()
-                )
+            throw internal_error(
+                "VirtualProtect call failed: {}",
+                std::system_error(GetLastError(), std::system_category()).what()
             );
         }
         return old_protections;
@@ -189,11 +189,9 @@ namespace internal {
     void* allocate_page(int page_size) {
         auto page = VirtualAlloc(nullptr, page_size, MEM_COMMIT | MEM_RESERVE, memory_readwrite);
         if(!page) {
-            throw std::runtime_error(
-                microfmt::format(
-                    "VirtualAlloc call failed: {}",
-                    std::system_error(GetLastError(), std::system_category()).what()
-                )
+            throw internal_error(
+                "VirtualAlloc call failed: {}",
+                std::system_error(GetLastError(), std::system_category()).what()
             );
         }
         return page;
@@ -238,7 +236,7 @@ namespace internal {
             &object
         );
         if(status == KERN_INVALID_ADDRESS) {
-            throw std::runtime_error("vm_region failed with KERN_INVALID_ADDRESS");
+            throw internal_error("vm_region failed with KERN_INVALID_ADDRESS");
         }
         int perms = 0;
         if(info.protection & VM_PROT_READ) {
@@ -253,49 +251,140 @@ namespace internal {
         return perms;
     }
     #else
-    int get_page_protections(void* page) {
-        auto page_addr = reinterpret_cast<uintptr_t>(page);
+    // Code for reading /proc/self/maps
+    // Unfortunately this is the canonical and only way to get memory permissions on linux
+    // It comes with some surprising behaviors. Because it's a pseudo-file and maps could update at any time, reads of
+    // the file can tear. The surprising observable behavior here is overlapping ranges:
+    // - https://unix.stackexchange.com/questions/704987/overlapping-address-ranges-in-proc-maps
+    // - https://stackoverflow.com/questions/59737950/what-is-the-correct-way-to-get-a-consistent-snapshot-of-proc-pid-smaps
+    // Additional info:
+    //   Note: reading /proc/PID/maps or /proc/PID/smaps is inherently racy (consistent
+    //   output can be achieved only in the single read call).
+    //   This typically manifests when doing partial reads of these files while the
+    //   memory map is being modified.  Despite the races, we do provide the following
+    //   guarantees:
+    //
+    //   1) The mapped addresses never go backwards, which implies no two
+    //      regions will ever overlap.
+    //   2) If there is something at a given vaddr during the entirety of the
+    //      life of the smaps/maps walk, there will be some output for it.
+    //
+    //   https://www.kernel.org/doc/Documentation/filesystems/proc.txt
+    // Ideally we could do everything as a single read() call but I don't think that's practical, especially given that
+    // the kernel has limited buffers internally. While we shouldn't be modifying mapped memory while reading
+    // /proc/self/maps here, it's theoretically possible that we could allocate and that could go to the OS for more
+    // pages.
+    // While reading this is inherently racy, as far as I can tell tears don't happen within a line but they can happen
+    // between lines.
+    // The code that writes /proc/pid/maps:
+    // - https://github.com/torvalds/linux/blob/3d0ebc36b0b3e8486ceb6e08e8ae173aaa6d1221/fs/proc/task_mmu.c#L304-L365
+
+    struct address_range {
+        uintptr_t low;
+        uintptr_t high;
+        int perms;
+        bool operator<(const address_range& other) const {
+            return low < other.low;
+        }
+    };
+
+    // returns nullopt on eof
+    optional<address_range> read_map_entry(std::ifstream& stream) {
+        uintptr_t start;
+        uintptr_t stop;
+        stream>>start;
+        stream.ignore(1); // dash
+        stream>>stop;
+        if(stream.eof()) {
+            return nullopt;
+        }
+        if(stream.fail()) {
+            throw internal_error("Failure reading /proc/self/maps");
+        }
+        stream.ignore(1); // space
+        char r, w, x; // there's a private/shared flag after these but we don't need it
+        stream>>r>>w>>x;
+        if(stream.fail() || stream.eof()) {
+            throw internal_error("Failure reading /proc/self/maps");
+        }
+        int perms = 0;
+        if(r == 'r') {
+            perms |= PROT_READ;
+        }
+        if(w == 'w') {
+            perms |= PROT_WRITE;
+        }
+        if(x == 'x') {
+            perms |= PROT_EXEC;
+        }
+        stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+        return address_range{start, stop, perms};
+    }
+
+    // returns a vector or nullopt if a tear is detected
+    optional<std::vector<address_range>> try_load_mapped_region_info() {
         std::ifstream stream("/proc/self/maps");
         stream>>std::hex;
-        while(!stream.eof()) {
-            uintptr_t start;
-            uintptr_t stop;
-            stream>>start;
-            stream.ignore(1); // dash
-            stream>>stop;
-            if(stream.eof()) {
-                break;
+        std::vector<address_range> ranges;
+        while(auto entry = read_map_entry(stream)) {
+            const auto& range = entry.unwrap();
+            VERIFY(range.low <= range.high);
+            if(!ranges.empty()) {
+                const auto& last_range = ranges.back();
+                if(range.low < last_range.high) {
+                    return nullopt;
+                }
             }
-            if(stream.fail()) {
-                throw std::runtime_error("Failure reading /proc/self/maps");
-            }
-            if(page_addr >= start && page_addr < stop) {
-                stream.ignore(1); // space
-                char r, w, x; // there's a private/shared flag after these but we don't need it
-                stream>>r>>w>>x;
-                if(stream.fail() || stream.eof()) {
-                    throw std::runtime_error("Failure reading /proc/self/maps");
-                }
-                int perms = 0;
-                if(r == 'r') {
-                    perms |= PROT_READ;
-                }
-                if(w == 'w') {
-                    perms |= PROT_WRITE;
-                }
-                if(x == 'x') {
-                    perms |= PROT_EXEC;
-                }
-                return perms;
-            }
-            stream.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+            ranges.push_back(range);
         }
-        throw std::runtime_error("Failed to find mapping with page in /proc/self/maps");
+        return ranges;
+    }
+
+    // we can allocate during try_load_mapped_region_info, in theory that could cause a tear
+    optional<std::vector<address_range>> try_load_mapped_region_info_with_retries(int n) {
+        VERIFY(n > 0);
+        for(int i = 0; i < n; i++) {
+            if(auto info = try_load_mapped_region_info()) {
+                return info;
+            }
+        }
+        throw internal_error("Couldn't successfully load /proc/self/maps after {} retries", n);
+    }
+
+    const std::vector<address_range>& load_mapped_region_info() {
+        static std::vector<address_range> regions;
+        static bool has_loaded = false;
+        if(!has_loaded) {
+            has_loaded = true;
+            if(auto info = try_load_mapped_region_info_with_retries(2)) {
+                regions = std::move(info).unwrap();
+            }
+        }
+        return regions;
+    }
+
+    int get_page_protections(void* page) {
+        const auto& mapped_region_info = load_mapped_region_info();
+        auto it = first_less_than_or_equal(
+            mapped_region_info.begin(),
+            mapped_region_info.end(),
+            reinterpret_cast<uintptr_t>(page),
+            [](uintptr_t a, const address_range& b) {
+                return a < b.low;
+            }
+        );
+        if(it == mapped_region_info.end()) {
+            throw internal_error(
+                "Failed to find mapping for {>16:0h} in /proc/self/maps",
+                reinterpret_cast<uintptr_t>(page)
+            );
+        }
+        return it->perms;
     }
     #endif
     void mprotect_page(void* page, int page_size, int protections) {
         if(mprotect(page, page_size, protections) != 0) {
-            throw std::runtime_error(microfmt::format("mprotect call failed: {}", strerror(errno)));
+            throw internal_error("mprotect call failed: {}", strerror(errno));
         }
     }
     int mprotect_page_and_return_old_protections(void* page, int page_size, int protections) {
@@ -306,12 +395,11 @@ namespace internal {
     void* allocate_page(int page_size) {
         auto page = mmap(nullptr, page_size, memory_readwrite, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
         if(page == MAP_FAILED) {
-            throw std::runtime_error(microfmt::format("mmap call failed: {}", strerror(errno)));
+            throw internal_error("mmap call failed: {}", strerror(errno));
         }
         return page;
     }
     #endif
-
     void perform_typeinfo_surgery(const std::type_info& info, bool(*do_catch_function)(const std::type_info*, const std::type_info*, void**, unsigned)) {
         if(vtable_size == 0) { // set to zero if we don't know what standard library we're working with
             return;
@@ -319,6 +407,8 @@ namespace internal {
         void* type_info_pointer = const_cast<void*>(static_cast<const void*>(&info));
         void** type_info_vtable_pointer = *static_cast<void***>(type_info_pointer);
         // the type info vtable pointer points to two pointers inside the vtable, adjust it back
+        // https://itanium-cxx-abi.github.io/cxx-abi/abi.html#vtable-components (see offset to top, typeinfo ptr,
+        // and the following bullet point)
         type_info_vtable_pointer -= 2;
 
         // for libstdc++ the class type info vtable looks like
@@ -351,15 +441,30 @@ namespace internal {
 
         // shouldn't be anything other than 4096 but out of an abundance of caution
         auto page_size = get_page_size();
-        if(page_size <= 0 && (page_size & (page_size - 1)) != 0) {
-            throw std::runtime_error(
-                microfmt::format("getpagesize() is not a power of 2 greater than zero (was {})", page_size)
+        if(page_size <= 0 && is_positive_power_of_two(page_size)) {
+            throw internal_error("getpagesize() is not a power of 2 greater than zero (was {})", page_size);
+        }
+        if(static_cast<size_t>(page_size) < vtable_size * sizeof(void*)) {
+            throw internal_error(
+                "Page size isn't big enough for a vtable: Needed {}, got {}",
+                vtable_size * sizeof(void*),
+                page_size
             );
         }
 
         // allocate a page for the new vtable so it can be made read-only later
         // the OS cleans this up, no cleanup done here for it
         void* new_vtable_page = allocate_page(page_size);
+
+        // Double-check alignment: "This address must have the alignment required for pointers"
+        //   https://itanium-cxx-abi.github.io/cxx-abi/abi.html#vtable-components
+        constexpr auto ptr_align = alignof(void*);
+        static_assert(is_positive_power_of_two(ptr_align), "alignof has to return a power of two");
+        auto align_mask = ptr_align - 1;
+        if((reinterpret_cast<uintptr_t>(new_vtable_page) & align_mask) != 0) {
+            throw internal_error("Bad allocation alignment: {}", reinterpret_cast<uintptr_t>(new_vtable_page));
+        }
+
         // make our own copy of the vtable
         memcpy(new_vtable_page, type_info_vtable_pointer, vtable_size * sizeof(void*));
         // ninja in the custom __do_catch interceptor
@@ -374,7 +479,7 @@ namespace internal {
         auto page_addr = type_info_addr & ~(page_size - 1);
         // make sure the memory we're going to set is within the page
         if(type_info_addr - page_addr + sizeof(void*) > static_cast<unsigned>(page_size)) {
-            throw std::runtime_error("pointer crosses page boundaries");
+            throw internal_error("pointer crosses page boundaries");
         }
         auto old_protections = mprotect_page_and_return_old_protections(
             reinterpret_cast<void*>(page_addr),
@@ -407,30 +512,26 @@ namespace internal {
 
     // called when unwinding starts after rethrowing, after search phase
     void rethrow_scope_cleanup() {
-        internal::get_rethrow_switch() = false;
+        get_rethrow_switch() = false;
     }
 
-    internal::scope_guard<void(&)()> setup_rethrow() {
-        internal::get_rethrow_switch() = true;
+    scope_guard<void(&)()> setup_rethrow() {
+        get_rethrow_switch() = true;
         // will flip the switch back to true as soon as the search phase completes and the unwinding begins
-        return internal::scope_exit<void(&)()>(rethrow_scope_cleanup);
+        return scope_exit<void(&)()>(rethrow_scope_cleanup);
     }
 }
-}
+CPPTRACE_END_NAMESPACE
 
 CPPTRACE_BEGIN_NAMESPACE
     namespace detail {
-        CPPTRACE_FORCE_NO_INLINE void collect_current_trace(std::size_t skip) {
-            internal::collect_current_trace(skip + 1);
-        }
-
         #ifdef _MSC_VER
         bool matches_exception(EXCEPTION_POINTERS* exception_ptrs, const std::type_info& type_info) {
             __try {
                 auto* exception_record = exception_ptrs->ExceptionRecord;
                 // Check if the SEH exception is a C++ exception
                 if(exception_record->ExceptionCode == EH_EXCEPTION_NUMBER) {
-                    return internal::matches_exception(exception_record, type_info);
+                    return detail::matches_exception(exception_record, type_info);
                 }
             } __except(EXCEPTION_EXECUTE_HANDLER) {
                 // pass
@@ -444,61 +545,61 @@ CPPTRACE_BEGIN_NAMESPACE
             void** throw_obj,
             unsigned outer
         ) {
-            return internal::can_catch(type, throw_type, throw_obj, outer);
+            return detail::can_catch(type, throw_type, throw_obj, outer);
         }
 
         void do_prepare_unwind_interceptor(const std::type_info& type_info, bool(*can_catch)(const std::type_info*, const std::type_info*, void**, unsigned)) {
             try {
-                internal::perform_typeinfo_surgery(
+                detail::perform_typeinfo_surgery(
                     type_info,
                     can_catch
                 );
             } catch(std::exception& e) {
-                internal::log::error("Exception occurred while preparing from_current support: {}", e.what());
+                detail::log::error("Exception occurred while preparing from_current support: {}", e.what());
             } catch(...) {
-                internal::log::error("Unknown exception occurred while preparing from_current support");
+                detail::log::error("Unknown exception occurred while preparing from_current support");
             }
         }
         #endif
     }
 
     const raw_trace& raw_trace_from_current_exception() {
-        return internal::current_exception_trace.get_raw_trace();
+        return detail::current_exception_trace.get_raw_trace();
     }
 
     const stacktrace& from_current_exception() {
-        return internal::current_exception_trace.get_resolved_trace();
+        return detail::current_exception_trace.get_resolved_trace();
     }
 
     const raw_trace& raw_trace_from_current_exception_rethrow() {
-        return internal::saved_rethrow_trace.get_raw_trace();
+        return detail::saved_rethrow_trace.get_raw_trace();
     }
 
     const stacktrace& from_current_exception_rethrow() {
-        return internal::saved_rethrow_trace.get_resolved_trace();
+        return detail::saved_rethrow_trace.get_resolved_trace();
     }
 
     bool current_exception_was_rethrown() {
-        if(internal::saved_rethrow_trace.is_resolved()) {
-            return !internal::saved_rethrow_trace.get_resolved_trace().empty();
+        if(detail::saved_rethrow_trace.is_resolved()) {
+            return !detail::saved_rethrow_trace.get_resolved_trace().empty();
         } else {
-            return !internal::saved_rethrow_trace.get_raw_trace().empty();
+            return !detail::saved_rethrow_trace.get_raw_trace().empty();
         }
     }
 
     // The non-argument overload is to serve as room for possible future optimization under Microsoft's STL
     CPPTRACE_FORCE_NO_INLINE void rethrow() {
-        auto guard = internal::setup_rethrow();
+        auto guard = detail::setup_rethrow();
         std::rethrow_exception(std::current_exception());
     }
 
     CPPTRACE_FORCE_NO_INLINE void rethrow(std::exception_ptr exception) {
-        auto guard = internal::setup_rethrow();
+        auto guard = detail::setup_rethrow();
         std::rethrow_exception(exception);
     }
 
     void clear_current_exception_traces() {
-        internal::current_exception_trace = detail::lazy_trace_holder{raw_trace{}};
-        internal::saved_rethrow_trace = detail::lazy_trace_holder{raw_trace{}};
+        detail::current_exception_trace = detail::lazy_trace_holder{raw_trace{}};
+        detail::saved_rethrow_trace = detail::lazy_trace_holder{raw_trace{}};
     }
 CPPTRACE_END_NAMESPACE

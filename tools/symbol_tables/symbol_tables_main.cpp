@@ -14,7 +14,7 @@
 #include <cpptrace/monolithic_examples.h>
 
 using namespace std::literals;
-using namespace cpptrace::internal;
+using namespace cpptrace::detail;
 
 template<> struct fmt::formatter<lyra::cli> : ostream_formatter {};
 
@@ -73,6 +73,41 @@ void lookup_symbol(const std::filesystem::path&, cpptrace::frame_ptr) {
 }
 #endif
 
+int symbol_tables(int argc, char** argv) {
+    bool show_help = false;
+    std::filesystem::path path;
+    std::optional<std::string> lookup;
+    auto cli = lyra::cli()
+        | lyra::help(show_help)
+        | lyra::opt(lookup, "address")["--lookup"]("address in hex to lookup")
+        | lyra::arg(path, "binary path")("binary to dump symbol tables for").required();
+    if(auto result = cli.parse({ argc, argv }); !result) {
+        fmt::println(stderr, "Error in command line: {}", result.message());
+        fmt::println("{}", cli);
+        return 1;
+    }
+    if(show_help) {
+        fmt::println("{}", cli);
+        return 0;
+    }
+    if(!std::filesystem::exists(path)) {
+        fmt::println(stderr, "Error: Path doesn't exist {}", path);
+        return 1;
+    }
+    if(!std::filesystem::is_regular_file(path)) {
+        fmt::println(stderr, "Error: Path isn't a regular file {}", path);
+        return 1;
+    }
+    if(lookup) {
+        auto address = std::stoull(*lookup, nullptr, 16);
+        fmt::println(stderr, "Looking up address {:016x}", address);
+        lookup_symbol(path, address);
+        return 0;
+    }
+    dump_symbols(path);
+    return 0;
+}
+
 
 #if defined(BUILD_MONOLITHIC)
 #define main cpptrace_symbol_tables_tool_main
@@ -80,44 +115,13 @@ void lookup_symbol(const std::filesystem::path&, cpptrace::frame_ptr) {
 
 extern "C"
 int main(int argc, const char** argv) {
-	return CPPTRACE_TRY {
-		bool show_help = false;
-		std::filesystem::path path;
-	    std::optional<std::string> lookup;
-		auto cli = lyra::cli()
-			| lyra::help(show_help)
-    	    | lyra::opt(lookup, "address")["--lookup"]("address in hex to lookup")
-			| lyra::arg(path, "binary path")("binary to dump symbol tables for").required();
-		if (auto result = cli.parse({ argc, argv }); !result) {
-			fmt::println(stderr, "Error in command line: {}", result.message());
-			fmt::println("{}", cli);
-			return 1;
-		}
-		if (show_help) {
-			fmt::println("{}", cli);
-			return 0;
-		}
-		if (!std::filesystem::exists(path)) {
-			fmt::println(stderr, "Error: Path doesn't exist {}", path);
-			return 1;
-		}
-		if (!std::filesystem::is_regular_file(path)) {
-			fmt::println(stderr, "Error: Path isn't a regular file {}", path);
-			return 1;
-		}
-	    if(lookup) {
-	        auto address = std::stoull(*lookup, nullptr, 16);
-	        fmt::println(stderr, "Looking up address {:016x}", address);
-	        lookup_symbol(path, address);
-	        return 0;
-	    }
-		dump_symbols(path);
-        return 0;
-	}
-	CPPTRACE_CATCH(const std::exception& e) {
-		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
-		cpptrace::from_current_exception().print();
-        return 2;
-	}
-	CPPTRACE_TRY_END;
+    int ret = 0;
+    CPPTRACE_TRY {
+        ret = symbol_tables(argc, argv);
+    } CPPTRACE_CATCH(const std::exception& e) {
+        fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
+        cpptrace::from_current_exception().print();
+        ret = 1;
+    }
+    return ret;
 }

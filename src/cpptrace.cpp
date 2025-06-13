@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -24,14 +25,14 @@
 #include "snippets/snippet.hpp"
 #include "options.hpp"
 
-namespace cpptrace {
-namespace internal {
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
     const formatter& get_default_snippet_formatter() {
         static formatter snippet_formatter = formatter{}.snippets(true);
         return snippet_formatter;
     }
 }
-}
+CPPTRACE_END_NAMESPACE
 
 CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
@@ -39,9 +40,7 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_raw_trace(skip + 1);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return raw_trace{};
         }
     }
@@ -51,35 +50,29 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_raw_trace(skip + 1, max_depth);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return raw_trace{};
         }
     }
 
     object_trace raw_trace::resolve_object_trace() const {
         try {
-            return object_trace{internal::get_frames_object_info(frames)};
+            return object_trace{detail::get_frames_object_info(frames)};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return object_trace{};
         }
     }
 
     stacktrace raw_trace::resolve() const {
         try {
-            std::vector<stacktrace_frame> trace = internal::resolve_frames(frames);
+            std::vector<stacktrace_frame> trace = detail::resolve_frames(frames);
             for(auto& frame : trace) {
-                frame.symbol = internal::demangle(frame.symbol, true);
+                frame.symbol = detail::demangle(frame.symbol, true);
             }
             return {std::move(trace)};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return stacktrace{};
         }
     }
@@ -97,9 +90,7 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_object_trace(skip + 1);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return object_trace{};
         }
     }
@@ -109,24 +100,20 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_object_trace(skip + 1, max_depth);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return object_trace{};
         }
     }
 
     stacktrace object_trace::resolve() const {
         try {
-            std::vector<stacktrace_frame> trace = internal::resolve_frames(frames);
+            std::vector<stacktrace_frame> trace = detail::resolve_frames(frames);
             for(auto& frame : trace) {
-                frame.symbol = internal::demangle(frame.symbol, true);
+                frame.symbol = detail::demangle(frame.symbol, true);
             }
             return {std::move(trace)};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return stacktrace();
         }
     }
@@ -140,7 +127,7 @@ CPPTRACE_BEGIN_NAMESPACE
     }
 
     object_frame stacktrace_frame::get_object_info() const {
-        return internal::get_frame_object_info(raw_address);
+        return detail::get_frame_object_info(raw_address);
     }
 
     std::string stacktrace_frame::to_string() const {
@@ -160,9 +147,7 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_trace(skip + 1);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return stacktrace{};
         }
     }
@@ -172,9 +157,7 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_trace(skip + 1, max_depth);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return stacktrace{};
         }
     }
@@ -192,15 +175,15 @@ CPPTRACE_BEGIN_NAMESPACE
     }
 
     void stacktrace::print_with_snippets() const {
-        internal::get_default_snippet_formatter().print(*this);
+        detail::get_default_snippet_formatter().print(*this);
     }
 
     void stacktrace::print_with_snippets(std::ostream& stream) const {
-        internal::get_default_snippet_formatter().print(stream, *this);
+        detail::get_default_snippet_formatter().print(stream, *this);
     }
 
     void stacktrace::print_with_snippets(std::ostream& stream, bool color) const {
-        internal::get_default_snippet_formatter().print(stream, *this, color);
+        detail::get_default_snippet_formatter().print(stream, *this, color);
     }
 
     void stacktrace::clear() {
@@ -223,11 +206,9 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
     raw_trace generate_raw_trace(std::size_t skip) {
         try {
-            return raw_trace{internal::capture_frames(skip + 1, SIZE_MAX)};
+            return raw_trace{detail::capture_frames(skip + 1, SIZE_MAX)};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return raw_trace{};
         }
     }
@@ -235,11 +216,9 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
     raw_trace generate_raw_trace(std::size_t skip, std::size_t max_depth) {
         try {
-            return raw_trace{internal::capture_frames(skip + 1, max_depth)};
+            return raw_trace{detail::capture_frames(skip + 1, max_depth)};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return raw_trace{};
         }
     }
@@ -247,11 +226,9 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
     std::size_t safe_generate_raw_trace(frame_ptr* buffer, std::size_t size, std::size_t skip) {
         try { // try/catch can never be hit but it's needed to prevent TCO
-            return internal::safe_capture_frames(buffer, size, skip + 1, SIZE_MAX);
+            return detail::safe_capture_frames(buffer, size, skip + 1, SIZE_MAX);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return 0;
         }
     }
@@ -264,11 +241,9 @@ CPPTRACE_BEGIN_NAMESPACE
          std::size_t max_depth
     ) {
         try { // try/catch can never be hit but it's needed to prevent TCO
-            return internal::safe_capture_frames(buffer, size, skip + 1, max_depth);
+            return detail::safe_capture_frames(buffer, size, skip + 1, max_depth);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return 0;
         }
     }
@@ -276,11 +251,9 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
     object_trace generate_object_trace(std::size_t skip) {
         try {
-            return object_trace{internal::get_frames_object_info(internal::capture_frames(skip + 1, SIZE_MAX))};
+            return object_trace{detail::get_frames_object_info(detail::capture_frames(skip + 1, SIZE_MAX))};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return object_trace{};
         }
     }
@@ -288,11 +261,9 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
     object_trace generate_object_trace(std::size_t skip, std::size_t max_depth) {
         try {
-            return object_trace{internal::get_frames_object_info(internal::capture_frames(skip + 1, max_depth))};
+            return object_trace{detail::get_frames_object_info(detail::capture_frames(skip + 1, max_depth))};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return object_trace{};
         }
     }
@@ -302,9 +273,7 @@ CPPTRACE_BEGIN_NAMESPACE
         try { // try/catch can never be hit but it's needed to prevent TCO
             return generate_trace(skip + 1, SIZE_MAX);
         } catch(...) {
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return stacktrace{};
         }
     }
@@ -312,45 +281,43 @@ CPPTRACE_BEGIN_NAMESPACE
     CPPTRACE_FORCE_NO_INLINE
     stacktrace generate_trace(std::size_t skip, std::size_t max_depth) {
         try {
-            std::vector<frame_ptr> frames = internal::capture_frames(skip + 1, max_depth);
-            std::vector<stacktrace_frame> trace = internal::resolve_frames(frames);
+            std::vector<frame_ptr> frames = detail::capture_frames(skip + 1, max_depth);
+            std::vector<stacktrace_frame> trace = detail::resolve_frames(frames);
             for(auto& frame : trace) {
-                frame.symbol = internal::demangle(frame.symbol, true);
+                frame.symbol = detail::demangle(frame.symbol, true);
             }
             return {std::move(trace)};
         } catch(...) { // NOSONAR
-            if(!internal::should_absorb_trace_exceptions()) {
-                throw;
-            }
+            detail::log_and_maybe_propagate_exception(std::current_exception());
             return stacktrace();
         }
     }
 
     object_frame safe_object_frame::resolve() const {
-        return internal::resolve_safe_object_frame(*this);
+        return detail::resolve_safe_object_frame(*this);
     }
 
     void get_safe_object_frame(frame_ptr address, safe_object_frame* out) {
-        internal::get_safe_object_frame(address, out);
+        detail::get_safe_object_frame(address, out);
     }
 
     bool can_signal_safe_unwind() {
-        return internal::has_safe_unwind();
+        return detail::has_safe_unwind();
     }
 
     bool can_get_safe_object_frame() {
-        return internal::has_get_safe_object_frame();
+        return detail::has_get_safe_object_frame();
     }
 
     void register_jit_object(const char* ptr, std::size_t size) {
-        internal::register_jit_object(ptr, size);
+        detail::register_jit_object(ptr, size);
     }
 
     void unregister_jit_object(const char* ptr) {
-        internal::unregister_jit_object(ptr);
+        detail::unregister_jit_object(ptr);
     }
 
     void clear_all_jit_objects() {
-        internal::clear_all_jit_objects();
+        detail::clear_all_jit_objects();
     }
 CPPTRACE_END_NAMESPACE

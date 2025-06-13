@@ -17,10 +17,12 @@
 #include "utils/optional.hpp"
 #include "utils/result.hpp"
 
-namespace cpptrace {
-namespace internal {
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
     bool isatty(int fd);
     int fileno(std::FILE* stream);
+
+    void enable_virtual_terminal_processing_if_needed() noexcept;
 
     inline std::vector<std::string> split(const std::string& str, const std::string& delims) {
         std::vector<std::string> vec;
@@ -140,7 +142,24 @@ namespace internal {
         return byte_swapper<T, sizeof(T)>{}(value);
     }
 
-    void enable_virtual_terminal_processing_if_needed() noexcept;
+    template<
+        typename T,
+        typename std::enable_if<std::is_arithmetic<T>::value && !std::is_signed<T>::value, int>::type = 0
+    >
+    constexpr bool is_positive_power_of_two(T value) {
+        return (value != 0) && (value & (value - 1)) == 0;
+    }
+
+    template<
+        typename T,
+        typename std::enable_if<std::is_arithmetic<T>::value && std::is_signed<T>::value, int>::type = 0
+    >
+    bool is_positive_power_of_two(T value) {
+        if(value < 0) {
+            return false;
+        }
+        return is_positive_power_of_two(static_cast<typename std::make_unsigned<T>::type>(value));
+    }
 
     constexpr unsigned n_digits(unsigned value) noexcept {
         return value < 10 ? 1 : 1 + n_digits(value / 10);
@@ -325,6 +344,6 @@ namespace internal {
         return scope_guard<F>(std::forward<F>(f));
     }
 }
-}
+CPPTRACE_END_NAMESPACE
 
 #endif

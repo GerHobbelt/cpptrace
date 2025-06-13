@@ -13,6 +13,7 @@
 #include "utils/lru_cache.hpp"
 #include "platform/path.hpp"
 #include "platform/program_name.hpp" // For CPPTRACE_MAX_PATH
+#include "logging.hpp"
 
 #if IS_APPLE
 #include "binary/mach-o.hpp"
@@ -34,8 +35,8 @@
 // https://github.com/davea42/libdwarf-addr2line
 // https://github.com/ruby/ruby/blob/master/addr2line.c
 
-namespace cpptrace {
-namespace internal {
+CPPTRACE_BEGIN_NAMESPACE
+namespace detail {
 namespace libdwarf {
     // printbugging as we go
     constexpr bool dump_dwarf = false;
@@ -107,7 +108,7 @@ namespace libdwarf {
 
     public:
         CPPTRACE_FORCE_NO_INLINE_FOR_PROFILING
-        dwarf_resolver(cstring_view object_path_, optional<skeleton_info> split_ = nullopt)
+        explicit dwarf_resolver(cstring_view object_path_, optional<skeleton_info> split_ = nullopt)
             : object_path(object_path_),
               skeleton(std::move(split_))
         {
@@ -147,8 +148,8 @@ namespace libdwarf {
                 buffer = std::unique_ptr<char[]>(new char[CPPTRACE_MAX_PATH]);
             }
             dwarf_set_de_alloc_flag(0);
-            auto ret = wrap(
-                dwarf_init_path_a,
+            Dwarf_Error error = nullptr;
+            auto ret = dwarf_init_path_a(
                 object_path.c_str(),
                 buffer.get(),
                 CPPTRACE_MAX_PATH,
@@ -156,13 +157,23 @@ namespace libdwarf {
                 universal_number,
                 nullptr,
                 nullptr,
-                &dbg.get()
+                &dbg.get(),
+                &error
             );
             if(ret == DW_DLV_OK) {
                 ok = true;
             } else if(ret == DW_DLV_NO_ENTRY) {
                 // fail, no debug info
                 ok = false;
+            } else if(ret == DW_DLV_ERROR) {
+                // fail, parsing error
+                ok = false;
+                Dwarf_Unsigned ev = dwarf_errno(error);
+                auto msg = raii_wrap(
+                    dwarf_errmsg(error),
+                    [this, error] (char*) { dwarf_dealloc_error(dbg.get(), error); }
+                );
+                log::error("dwarf error: dwarf_init_path_a failed with error {} {}", ev, msg.get());
             } else {
                 ok = false;
                 PANIC("Unknown return code from dwarf_init_path");
@@ -428,7 +439,7 @@ namespace libdwarf {
         ) {
             ASSERT(die.get_tag() == DW_TAG_subprogram);
             const auto name = subprogram_symbol(die, dwversion);
-            if(internal::should_resolve_inlined_calls()) {
+            if(should_resolve_inlined_calls()) {
                 get_inlines_info(cu_die, die, pc, dwversion, inlines);
             }
             return name;
@@ -575,12 +586,8 @@ namespace libdwarf {
                 const auto& subprogram_cache = it->second;
                 auto maybe_die = subprogram_cache.lookup(pc);
                 // If the vector has been empty this can happen
-                if(maybe_die.has_value()) {
-                    if(maybe_die.unwrap().pc_in_die(cu_die, dwversion, pc)) {
-                        frame.symbol = retrieve_symbol_for_subprogram(cu_die, maybe_die.unwrap(), pc, dwversion, inlines);
-                    }
-                } else {
-                    ASSERT(subprogram_cache.ranges_count() == 0, "subprogram_cache.ranges_count() should be 0?");
+                if(maybe_die.has_value() && maybe_die.unwrap().pc_in_die(cu_die, dwversion, pc)) {
+                    frame.symbol = retrieve_symbol_for_subprogram(cu_die, maybe_die.unwrap(), pc, dwversion, inlines);
                 }
             }
         }
@@ -936,7 +943,7 @@ namespace libdwarf {
                     if(it == split_full_cu_resolvers.end()) {
                         it = split_full_cu_resolvers.emplace(
                             off,
-                            internal::make_unique<dwarf_resolver>(path, skeleton_info{cu_die.clone(), dwversion, *this})
+                            detail::make_unique<dwarf_resolver>(path, skeleton_info{cu_die.clone(), dwversion, *this})
                         ).first;
                     }
                     res = it->second->resolve_frame(object_frame_info);
@@ -991,7 +998,7 @@ namespace libdwarf {
                     {}
                 };
             }
-            stacktrace_frame frame = null_frame;
+            stacktrace_frame frame = null_frame();
             frame.filename = frame_info.object_path;
             frame.raw_address = frame_info.raw_address;
             frame.object_address = frame_info.object_address;
@@ -1014,10 +1021,10 @@ namespace libdwarf {
     };
 
     std::unique_ptr<symbol_resolver> make_dwarf_resolver(cstring_view object_path) {
-        return internal::make_unique<dwarf_resolver>(object_path);
+        return detail::make_unique<dwarf_resolver>(object_path);
     }
 }
 }
-}
+CPPTRACE_END_NAMESPACE
 
 #endif

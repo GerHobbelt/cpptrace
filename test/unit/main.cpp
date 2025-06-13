@@ -1,5 +1,10 @@
 #include <gtest/gtest.h>
+
+#ifdef TEST_MODULE
+import cpptrace;
+#else
 #include <cpptrace/cpptrace.hpp>
+#endif
 
 #include "monolithic_examples.h"
 
