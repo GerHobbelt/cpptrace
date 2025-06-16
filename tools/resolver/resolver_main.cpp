@@ -55,7 +55,7 @@ void resolve(const options& opts, cpptrace::frame_ptr address) {
     }
 }
 
-int resolver(int argc, char** argv) {
+int resolver(int argc, const char** argv) {
     options opts;
     auto cli = lyra::cli()
         | lyra::help(opts.show_help)

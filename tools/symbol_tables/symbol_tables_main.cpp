@@ -77,22 +77,22 @@ void lookup_symbol(const options& options, cpptrace::frame_ptr address) {
     }
 }
 #elif IS_APPLE
-void dump_symbols(const std::filesystem::path&) {
+void dump_symbols(const options& options) {
     fmt::println("Not implemented yet (TODO)");
 }
-void lookup_symbol(const std::filesystem::path&, cpptrace::frame_ptr) {
+void lookup_symbol(const options& options, cpptrace::frame_ptr address) {
     fmt::println("Not implemented yet (TODO)");
 }
 #else
-void dump_symbols(const std::filesystem::path&) {
+void dump_symbols(const options& options) {
     fmt::println("Not implemented yet (TODO)");
 }
-void lookup_symbol(const std::filesystem::path&, cpptrace::frame_ptr) {
+void lookup_symbol(const options& options, cpptrace::frame_ptr address) {
     fmt::println("Not implemented yet (TODO)");
 }
 #endif
 
-int symbol_tables(int argc, char** argv) {
+int symbol_tables(int argc, const char** argv) {
     bool show_help = false;
     std::optional<std::string> lookup;
     options options;
