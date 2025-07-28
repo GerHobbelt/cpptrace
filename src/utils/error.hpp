@@ -117,12 +117,12 @@ namespace detail {
     )
 
     #ifndef NDEBUG
-     // Check condition in both debug. std::runtime_error on failure.
+     // Check condition in debug mode only, compile-time type-checking-only no-op in release. std::runtime_error on failure.
      #define ASSERT(...) ( \
         assert_impl(__VA_ARGS__, ::cpptrace::detail::assert_type::assert, #__VA_ARGS__, CPPTRACE_PFUNC, CPPTRACE_CURRENT_LOCATION) \
      )
     #else
-     // Check condition in both debug. std::runtime_error on failure.
+     // Check condition in debug mode only, compile-time type-checking-only no-op in release. std::runtime_error on failure.
      #define ASSERT(...) PHONY_USE(__VA_ARGS__)
     #endif
 
