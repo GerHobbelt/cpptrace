@@ -542,16 +542,16 @@ void foo() {
     throw std::runtime_error("foo failed");
 }
 int main() {
-	int rv = 1;
+    int rv = 1;
     CPPTRACE_TRY {
         foo();
-		rv = 0;
+        rv = 0;
     } CPPTRACE_CATCH(const std::exception& e) {
         std::cerr<<"Exception: "<<e.what()<<std::endl;
         cpptrace::from_current_exception().print();
-		rv = 66;
+        rv = 66;
     }
-	return rv;
+    return rv;
 }
 ```
 

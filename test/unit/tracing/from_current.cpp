@@ -97,7 +97,6 @@ TEST(FromCurrent, Basic) {
         EXPECT_LINE(trace.frames[i].line.value(), line_numbers[j]);
         EXPECT_THAT(trace.frames[i].symbol, testing::HasSubstr("FromCurrent_Basic_Test::TestBody"));
     }
-	CPPTRACE_TRY_END;
 }
 
 TEST(FromCurrent, CorrectHandler) {
@@ -133,7 +132,6 @@ TEST(FromCurrent, CorrectHandler) {
     if(wrong_handler) {
         FAIL();
     }
-	CPPTRACE_TRY_END;
 }
 
 TEST(FromCurrent, RawTrace) {
@@ -163,7 +161,6 @@ TEST(FromCurrent, RawTrace) {
         );
         EXPECT_NE(it, trace.frames.end());
     }
-	CPPTRACE_TRY_END;
 }
 
 TEST(FromCurrent, NonThrowingPath) {

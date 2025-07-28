@@ -190,7 +190,6 @@ int main(int argc, const char** argv) {
 		fmt::println(stderr, "Caught exception {}: {}", cpptrace::demangle(typeid(e).name()), e.what());
 		cpptrace::from_current_exception().print();
 	}
-	CPPTRACE_TRY_END;
 	return 0;
 }
 

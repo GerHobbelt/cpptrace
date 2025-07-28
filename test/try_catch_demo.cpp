@@ -15,13 +15,14 @@ static void foo() {
 #endif
 
 int main(void) {
-    return CPPTRACE_TRY {
+	int rv = 1;
+    CPPTRACE_TRY {
         foo();
-		return 0;
+		rv = 0;
     } CPPTRACE_CATCH(const std::exception& e) {
         std::cerr<<"Exception: "<<e.what()<<std::endl;
         cpptrace::from_current_exception().print();
-		return 66;
+		rv = 66;
     }
-    CPPTRACE_TRY_END;
+	return rv;
 }
