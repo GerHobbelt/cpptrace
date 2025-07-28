@@ -11,10 +11,9 @@
 #include "utils/microfmt.hpp"
 #include "utils/utils.hpp"
 #include "logging.hpp"
+#include "unwind/unwind.hpp"
 
-#ifdef _MSC_VER
- #include <ehdata.h>
-#else
+#ifndef _MSC_VER
  #include <string.h>
  #if IS_WINDOWS
   #ifndef WIN32_LEAN_AND_MEAN
@@ -46,8 +45,7 @@ namespace detail {
         return rethrow_switch;
     }
 
-    CPPTRACE_FORCE_NO_INLINE void collect_current_trace(std::size_t skip) {
-        auto trace = cpptrace::generate_raw_trace(skip + 1);
+    void save_current_trace(raw_trace trace) {
         if(get_rethrow_switch()) {
             saved_rethrow_trace = lazy_trace_holder(std::move(trace));
         } else {
@@ -56,21 +54,94 @@ namespace detail {
         }
     }
 
+    #if defined(_MSC_VER) && defined(CPPTRACE_UNWIND_WITH_DBGHELP)
+     CPPTRACE_FORCE_NO_INLINE void collect_current_trace(std::size_t skip, EXCEPTION_POINTERS* exception_ptrs) {
+         try {
+             #if defined(_M_IX86) || defined(__i386__)
+              // skip one frame, first is CxxThrowException
+              (void)skip;
+              auto trace = raw_trace{detail::capture_frames(1, SIZE_MAX, exception_ptrs)};
+             #else
+              (void)exception_ptrs;
+              auto trace = raw_trace{detail::capture_frames(skip + 1, SIZE_MAX)};
+             #endif
+             save_current_trace(std::move(trace));
+         } catch(...) {
+             detail::log_and_maybe_propagate_exception(std::current_exception());
+         }
+     }
+    #else
+     CPPTRACE_FORCE_NO_INLINE void collect_current_trace(std::size_t skip) {
+         try {
+             auto trace = raw_trace{detail::capture_frames(skip + 1, SIZE_MAX)};
+             save_current_trace(std::move(trace));
+         } catch(...) {
+             detail::log_and_maybe_propagate_exception(std::current_exception());
+         }
+     }
+    #endif
+
     #ifdef _MSC_VER
     // https://www.youtube.com/watch?v=COEv2kq_Ht8
     // https://github.com/tpn/pdfs/blob/master/2018%20CppCon%20Unwinding%20the%20Stack%20-%20Exploring%20how%20C%2B%2B%20Exceptions%20work%20on%20Windows%20-%20James%20McNellis.pdf
     // https://github.com/ecatmur/stacktrace-from-exception/blob/main/stacktrace-from-exception.cpp
     // https://github.com/wine-mirror/wine/blob/7f833db11ffea4f3f4fa07be31d30559aff9c5fb/dlls/msvcrt/except.c#L371
     // https://github.com/facebook/folly/blob/d17bf897cb5bbf8f07b122a614e8cffdc38edcde/folly/lang/Exception.cpp
+
+    // ClangCL doesn't define ThrowInfo so we use our own
+    // sources:
+    // - https://github.com/ecatmur/stacktrace-from-exception/blob/main/stacktrace-from-exception.cpp
+    // - https://github.com/catboost/catboost/blob/master/contrib/libs/cxxsupp/libcxx/src/support/runtime/exception_pointer_msvc.ipp
+    // - https://www.geoffchappell.com/studies/msvc/language/predefined/index.htm
+    #ifdef _WIN64
+     #pragma pack(push, 4)
+     struct CatchableType {
+         std::uint32_t properties;
+         std::int32_t pType;
+         std::uint32_t non_virtual_adjustment; // these next three are from _PMD
+         std::uint32_t offset_to_virtual_base_ptr;
+         std::uint32_t virtual_base_table_index;
+         std::uint32_t sizeOrOffset;
+         std::int32_t copyFunction;
+     };
+     struct ThrowInfo {
+         std::uint32_t attributes;
+         std::int32_t pmfnUnwind;
+         std::int32_t pForwardCompat;
+         std::int32_t pCatchableTypeArray;
+     };
+     #pragma warning(disable:4200)
+     #if IS_CLANG
+      #pragma clang diagnostic push
+      #pragma clang diagnostic ignored "-Wc99-extensions"
+     #endif
+     struct CatchableTypeArray {
+         uint32_t nCatchableTypes;
+         int32_t arrayOfCatchableTypes[];
+     };
+     #if IS_CLANG
+      #pragma clang diagnostic pop
+     #endif
+     #pragma warning (pop)
+     #pragma pack(pop)
+    #else
+     using CatchableTypeArray = ::_CatchableTypeArray;
+     using CatchableType = ::_CatchableType;
+     using ThrowInfo = ::_ThrowInfo;
+    #endif
+
+    static constexpr unsigned EH_MAGIC_NUMBER1 = 0x19930520; // '?msc' version magic, see ehdata.h
+    static constexpr unsigned EH_EXCEPTION_NUMBER = 0xE06D7363;  // '?msc', 'msc' | 0xE0000000
+
     using catchable_type_array_t = decltype(ThrowInfo::pCatchableTypeArray);
 
     class catchable_type_info {
         HMODULE module_pointer = nullptr;
-        const _CatchableTypeArray* catchable_types = nullptr;
+        const CatchableTypeArray* catchable_types = nullptr;
     public:
         catchable_type_info(const HMODULE module_pointer, catchable_type_array_t catchable_type_array)
             : module_pointer(module_pointer) {
-            catchable_types = rtti_rva<const _CatchableTypeArray*>(catchable_type_array);
+            catchable_types = rtti_rva<const CatchableTypeArray*>(catchable_type_array);
         }
 
         class iterator {
@@ -527,6 +598,7 @@ CPPTRACE_BEGIN_NAMESPACE
     namespace detail {
         #ifdef _MSC_VER
         bool matches_exception(EXCEPTION_POINTERS* exception_ptrs, const std::type_info& type_info) {
+            CPPTRACE_PUSH_EXTENSION_WARNINGS
             __try {
                 auto* exception_record = exception_ptrs->ExceptionRecord;
                 // Check if the SEH exception is a C++ exception
@@ -536,16 +608,30 @@ CPPTRACE_BEGIN_NAMESPACE
             } __except(EXCEPTION_EXECUTE_HANDLER) {
                 // pass
             }
+            CPPTRACE_POP_EXTENSION_WARNINGS
             return false;
         }
+        CPPTRACE_FORCE_NO_INLINE
+        void maybe_collect_trace(EXCEPTION_POINTERS* exception_ptrs, const std::type_info& type_info) {
+            if(matches_exception(exception_ptrs, type_info)) {
+                #ifdef CPPTRACE_UNWIND_WITH_DBGHELP
+                collect_current_trace(2, exception_ptrs);
+                #else
+                collect_current_trace(2);
+                #endif
+            }
+        }
         #else
-        bool check_can_catch(
+        CPPTRACE_FORCE_NO_INLINE
+        void maybe_collect_trace(
             const std::type_info* type,
             const std::type_info* throw_type,
             void** throw_obj,
             unsigned outer
         ) {
-            return detail::can_catch(type, throw_type, throw_obj, outer);
+            if(detail::can_catch(type, throw_type, throw_obj, outer)) {
+                collect_current_trace(2);
+            }
         }
 
         void do_prepare_unwind_interceptor(const std::type_info& type_info, bool(*can_catch)(const std::type_info*, const std::type_info*, void**, unsigned)) {
