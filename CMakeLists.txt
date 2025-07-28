@@ -9,7 +9,7 @@ set(package_name "cpptrace")
 
 project(
   cpptrace
-  VERSION 1.0.1
+  VERSION 1.0.2
   DESCRIPTION "Simple, portable, and self-contained stacktrace library for C++11 and newer "
   HOMEPAGE_URL "https://github.com/jeremy-rifkin/cpptrace"
   LANGUAGES C CXX
@@ -157,7 +157,7 @@ target_sources(
     src/platform/dbghelp_utils.cpp
 )
 
-if(HAS_CXX20_MODULES)
+if(HAS_CXX20_MODULES AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.23")
   target_sources(
     ${target_name} PUBLIC
     FILE_SET CXX_MODULES

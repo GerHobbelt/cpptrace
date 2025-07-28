@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <string_view>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -18,8 +17,6 @@ import cpptrace;
 #include <cpptrace/cpptrace.hpp>
 #include <cpptrace/from_current.hpp>
 #endif
-
-using namespace std::literals;
 
 
 static volatile int truthy = 2;
@@ -60,7 +57,7 @@ TEST(FromCurrent, Basic) {
     } CPPTRACE_CATCH(const std::runtime_error& e) {
         does_enter_catch = true;
         EXPECT_FALSE(cpptrace::current_exception_was_rethrown());
-        EXPECT_EQ(e.what(), "foobar"sv);
+        EXPECT_EQ(e.what(), std::string("foobar"));
         const auto& trace = cpptrace::from_current_exception();
         ASSERT_GE(trace.frames.size(), 4);
         auto it = std::find_if(
@@ -114,7 +111,7 @@ TEST(FromCurrent, CorrectHandler) {
             wrong_handler = true;
         }
     } CPPTRACE_CATCH(const std::exception& e) {
-        EXPECT_EQ(e.what(), "foobar"sv);
+        EXPECT_EQ(e.what(), std::string("foobar"));
         const auto& trace = cpptrace::from_current_exception();
         auto it = std::find_if(
             trace.frames.begin(),
@@ -146,7 +143,7 @@ TEST(FromCurrent, RawTrace) {
         static volatile int tco_guard = stacktrace_from_current_1(line_numbers);
         (void)tco_guard;
     } CPPTRACE_CATCH(const std::exception& e) {
-        EXPECT_EQ(e.what(), "foobar"sv);
+        EXPECT_EQ(e.what(), std::string("foobar"));
         const auto& raw_trace = cpptrace::raw_trace_from_current_exception();
         auto trace = raw_trace.resolve();
         auto it = std::find_if(

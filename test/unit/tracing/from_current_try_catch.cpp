@@ -1,5 +1,4 @@
 #include <algorithm>
-#include <string_view>
 #include <string>
 
 #include <gtest/gtest.h>
@@ -15,8 +14,6 @@ import cpptrace;
 #include <cpptrace/cpptrace.hpp>
 #include <cpptrace/from_current.hpp>
 #endif
-
-using namespace std::literals;
 
 
 static volatile int truthy = 2;
@@ -54,7 +51,7 @@ TEST(FromCurrentTryCatch, Basic) {
         },
         [&] (const std::runtime_error& e) {
             EXPECT_FALSE(cpptrace::current_exception_was_rethrown());
-            EXPECT_EQ(e.what(), "foobar"sv);
+            EXPECT_EQ(e.what(), std::string("foobar"));
             const auto& trace = cpptrace::from_current_exception();
             ASSERT_GE(trace.frames.size(), 4);
             auto it = std::find_if(
@@ -114,7 +111,7 @@ TEST(FromCurrentTryCatch, CorrectHandler) {
             FAIL();
         },
         [&] (const std::runtime_error& e) {
-            EXPECT_EQ(e.what(), "foobar"sv);
+            EXPECT_EQ(e.what(), std::string("foobar"));
             const auto& trace = cpptrace::from_current_exception();
             auto it = std::find_if(
                 trace.frames.begin(),
@@ -145,7 +142,7 @@ TEST(FromCurrentTryCatch, RawTrace) {
             (void)tco_guard;
         },
         [&] (const std::runtime_error& e) {
-            EXPECT_EQ(e.what(), "foobar"sv);
+            EXPECT_EQ(e.what(), std::string("foobar"));
             const auto& raw_trace = cpptrace::raw_trace_from_current_exception();
             auto trace = raw_trace.resolve();
             auto it = std::find_if(

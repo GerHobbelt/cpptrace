@@ -160,7 +160,7 @@ include(FetchContent)
 FetchContent_Declare(
   cpptrace
   GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v1.0.1 # <HASH or TAG>
+  GIT_TAG        v1.0.2 # <HASH or TAG>
 )
 FetchContent_MakeAvailable(cpptrace)
 target_link_libraries(your_target cpptrace::cpptrace)
@@ -388,6 +388,7 @@ namespace cpptrace {
         formatter& filtered_frame_placeholders(bool);
         formatter& filter(std::function<bool(const stacktrace_frame&)>);
         formatter& transform(std::function<stacktrace_frame(stacktrace_frame)>);
+        formatter& break_before_filename(bool do_break = true);
 
         std::string format(const stacktrace_frame&) const;
         std::string format(const stacktrace_frame&, bool color) const;
@@ -426,6 +427,7 @@ Options:
 | `filtered_frame_placeholders` | Whether to still print filtered frames as just `#n (filtered)`     | `true`                                                                   |
 | `filter`                      | A predicate to filter frames with                                  | None                                                                     |
 | `transform`                   | A transformer which takes a stacktrace frame and modifies it       | None                                                                     |
+| `break_before_filename`       | Print symbol and line source location on different lines           | `false`                                                                  |
 
 The `automatic` color mode attempts to detect if a stream that may be attached to a terminal. As such, it will not use
 colors for the `formatter::format` method and it may not be able to detect if some ostreams correspond to terminals or
@@ -1287,7 +1289,7 @@ namespace cpptrace {
 
 # ABI Versioning
 
-Since cpptrace v1.0.1, the library uses an inline ABI versioning namespace and all symbols part of the public interface
+Since cpptrace v1.0.2, the library uses an inline ABI versioning namespace and all symbols part of the public interface
 are secretly under the namespace `cpptrace::v1`. This is done to allow for potential future library evolution in an
 ABI-friendly manner.
 
@@ -1315,7 +1317,7 @@ include(FetchContent)
 FetchContent_Declare(
   cpptrace
   GIT_REPOSITORY https://github.com/jeremy-rifkin/cpptrace.git
-  GIT_TAG        v1.0.1 # <HASH or TAG>
+  GIT_TAG        v1.0.2 # <HASH or TAG>
 )
 FetchContent_MakeAvailable(cpptrace)
 target_link_libraries(your_target cpptrace::cpptrace)
@@ -1331,7 +1333,7 @@ information.
 
 ```sh
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v1.0.1
+git checkout v1.0.2
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -1374,7 +1376,7 @@ you when installing new libraries.
 
 ```ps1
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v1.0.1
+git checkout v1.0.2
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release
@@ -1392,7 +1394,7 @@ To install just for the local user (or any custom prefix):
 
 ```sh
 git clone https://github.com/jeremy-rifkin/cpptrace.git
-git checkout v1.0.1
+git checkout v1.0.2
 mkdir cpptrace/build
 cd cpptrace/build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$HOME/wherever
@@ -1475,7 +1477,7 @@ make install
 cd ~/scratch/cpptrace-test
 git clone https://github.com/jeremy-rifkin/cpptrace.git
 cd cpptrace
-git checkout v1.0.1
+git checkout v1.0.2
 mkdir build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=On -DCPPTRACE_USE_EXTERNAL_LIBDWARF=On -DCMAKE_PREFIX_PATH=~/scratch/cpptrace-test/resources -DCMAKE_INSTALL_PREFIX=~/scratch/cpptrace-test/resources
@@ -1495,7 +1497,7 @@ cpptrace and its dependencies.
 Cpptrace is available through conan at https://conan.io/center/recipes/cpptrace.
 ```
 [requires]
-cpptrace/1.0.1
+cpptrace/1.0.2
 [generators]
 CMakeDeps
 CMakeToolchain
@@ -1523,6 +1525,10 @@ target_link_libraries(main PRIVATE cpptrace::cpptrace)
 
 Cpptrace supports C++20 modules: `import cpptrace;`. You'll need a modern toolchain in order to use C++20 modules (i.e.
 relatively new compilers, cmake, etc).
+
+For features involving macros you will have to `#include` headers with the macro definitions:
+- `<cpptrace/exceptions_macros.hpp>`: `CPPTRACE_WRAP` and `CPPTRACE_WRAP_BLOCK`
+- `<cpptrace/from_current_macros.hpp>`: `CPPTRACE_TRY`, `CPPTRACE_CATCH`, etc.
 
 # Platform Logistics
 
