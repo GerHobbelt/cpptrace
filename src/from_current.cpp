@@ -58,9 +58,8 @@ namespace detail {
      CPPTRACE_FORCE_NO_INLINE void collect_current_trace(std::size_t skip, EXCEPTION_POINTERS* exception_ptrs) {
          try {
              #if defined(_M_IX86) || defined(__i386__)
-              // skip one frame, first is CxxThrowException
-              (void)skip;
-              auto trace = raw_trace{detail::capture_frames(1, SIZE_MAX, exception_ptrs)};
+              (void)skip; // don't skip any frames, the context record is at the throw point
+              auto trace = raw_trace{detail::capture_frames(0, SIZE_MAX, exception_ptrs)};
              #else
               (void)exception_ptrs;
               auto trace = raw_trace{detail::capture_frames(skip + 1, SIZE_MAX)};
@@ -612,12 +611,25 @@ CPPTRACE_BEGIN_NAMESPACE
             return false;
         }
         CPPTRACE_FORCE_NO_INLINE
+        int maybe_collect_trace(EXCEPTION_POINTERS* exception_ptrs, int filter_result) {
+            if(filter_result == EXCEPTION_EXECUTE_HANDLER) {
+                #ifdef CPPTRACE_UNWIND_WITH_DBGHELP
+                 collect_current_trace(1, exception_ptrs);
+                #else
+                 collect_current_trace(1);
+                 (void)exception_ptrs;
+                #endif
+            }
+            return filter_result;
+        }
+        CPPTRACE_FORCE_NO_INLINE
         void maybe_collect_trace(EXCEPTION_POINTERS* exception_ptrs, const std::type_info& type_info) {
             if(matches_exception(exception_ptrs, type_info)) {
                 #ifdef CPPTRACE_UNWIND_WITH_DBGHELP
-                collect_current_trace(2, exception_ptrs);
+                 collect_current_trace(2, exception_ptrs);
                 #else
-                collect_current_trace(2);
+                 collect_current_trace(2);
+                 (void)exception_ptrs;
                 #endif
             }
         }
