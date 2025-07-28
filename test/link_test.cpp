@@ -9,10 +9,17 @@ import cpptrace;
 #include <cpptrace/exceptions.hpp>
 #endif
 
+#include <cpptrace/monolithic_examples.h>
+
 // These are just here to make sure all symbols are found
 
-int main() {
-    auto r = cpptrace::raw_trace::current();
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_link_test_main
+#endif
+
+extern "C"
+int main(void) {
+	auto r = cpptrace::raw_trace::current();
     r = cpptrace::raw_trace::current(0, 100);
     r.resolve();
     r.clear();
@@ -94,4 +101,6 @@ int main() {
     cpptrace::basename("");
     cpptrace::prettify_symbol("");
     cpptrace::prune_symbol("");
+
+	return 0;
 }

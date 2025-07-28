@@ -20,6 +20,8 @@ MONOLITHIC_CMD_TABLE_START()
 { "signal_demo", { .f = cpptrace_signal_demo_main } },
 { "signal_tracer", { .f = cpptrace_signal_tracer_main } },
 { "try_catch_demo", { .f = cpptrace_try_catch_demo_main } },
+{ "load_library_test", { .f = cpptrace_load_library_test_main } },
+{ "link_test", { .f = cpptrace_link_test_main } },
 { "tests", { .fa = cpptrace_tests_main } },
 
 { "dwarfdump", { .fa = cpptrace_dwarfdump_tool_main } },

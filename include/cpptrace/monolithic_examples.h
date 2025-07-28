@@ -18,6 +18,8 @@ int cpptrace_signal_demo_main(void);
 int cpptrace_signal_tracer_main(void);
 int cpptrace_tests_main(int argc, const char** argv);
 int cpptrace_try_catch_demo_main(void);
+int cpptrace_load_library_test_main(void);
+int cpptrace_link_test_main(void);
 
 int cpptrace_dwarfdump_tool_main(int argc, const char** argv);
 int cpptrace_resolver_tool_main(int argc, const char** argv);

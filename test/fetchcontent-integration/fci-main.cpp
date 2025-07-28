@@ -1,6 +1,6 @@
 #include <cpptrace/cpptrace.hpp>
 
-#include "monolithic_examples.h"
+#include <cpptrace/monolithic_examples.h>
 
 namespace {
 

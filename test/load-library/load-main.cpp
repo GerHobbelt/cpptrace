@@ -8,8 +8,16 @@
 
 #include <cpptrace/from_current.hpp>
 
-int main() {
-    // generate a trace before LoadLibraryA to initialize dbghelp
+#include <cpptrace/monolithic_examples.h>
+
+#if defined(BUILD_MONOLITHIC)
+#define main  cpptrace_load_library_test_main
+#endif
+
+extern "C"
+int main(void) {
+#if defined(_WIN32)
+	// generate a trace before LoadLibraryA to initialize dbghelp
     cpptrace::generate_trace().print();
 
     HMODULE lib = LoadLibraryA("mydll.dll");
@@ -33,4 +41,10 @@ int main() {
     }
 
     FreeLibrary(lib);
+
+	return 0;
+#else
+	std::cerr << "LoadLibrary demo not implemented for your platform, sorry!\n";
+	return 1;
+#endif
 }
