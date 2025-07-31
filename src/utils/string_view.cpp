@@ -23,11 +23,6 @@
 
 CPPTRACE_BEGIN_NAMESPACE
 namespace detail {
-	// warning C5041: 'npos': out-of-line definition for constexpr static data member is not needed and is deprecated in C++17
-#if 0
-	constexpr std::size_t string_view::npos;
-#endif
-
     char string_view::operator[](size_t i) const {
         ASSERT(i < size());
         return ptr[i];
@@ -66,11 +61,6 @@ namespace detail {
     bool operator==(string_view a, string_view b) {
         return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size()) == 0;
     }
-
-	// warning C5041: 'npos': out-of-line definition for constexpr static data member is not needed and is deprecated in C++17
-#if 0
-	constexpr std::size_t cstring_view::npos;
-#endif
 
     cstring_view cstring_view::substr(std::size_t pos) const {
         ASSERT(pos <= count);
