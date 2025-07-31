@@ -6,9 +6,27 @@
 #include <algorithm>
 #include <cstring>
 
+// -----------------------------------------------------------------------------
+// C++ Version Check
+// -----------------------------------------------------------------------------
+
+// Enforce C++17 as the minimum.
+#if defined(_MSVC_LANG)
+#if _MSVC_LANG < 201703L
+#error "C++ versions less than C++17 are not supported."
+#endif  // _MSVC_LANG < 201703L
+#elif defined(__cplusplus)
+#if __cplusplus < 201703L
+#error "C++ versions less than C++17 are not supported."
+#endif  // __cplusplus < 201703L
+#endif
+
 CPPTRACE_BEGIN_NAMESPACE
 namespace detail {
-    constexpr std::size_t string_view::npos;
+	// warning C5041: 'npos': out-of-line definition for constexpr static data member is not needed and is deprecated in C++17
+#if 0
+	constexpr std::size_t string_view::npos;
+#endif
 
     char string_view::operator[](size_t i) const {
         ASSERT(i < size());
@@ -49,7 +67,10 @@ namespace detail {
         return a.size() == b.size() && std::memcmp(a.data(), b.data(), a.size()) == 0;
     }
 
-    constexpr std::size_t cstring_view::npos;
+	// warning C5041: 'npos': out-of-line definition for constexpr static data member is not needed and is deprecated in C++17
+#if 0
+	constexpr std::size_t cstring_view::npos;
+#endif
 
     cstring_view cstring_view::substr(std::size_t pos) const {
         ASSERT(pos <= count);
